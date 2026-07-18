@@ -1,0 +1,10 @@
+staged_count=$(git diff --cached --name-only | wc -l)
+
+if [ "$staged_count" -gt 1 ]; then
+  non_paired=$(git diff --cached --name-only | grep -vE '(^|/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$' | wc -l)
+  if [ "$non_paired" -gt 1 ]; then
+    echo "Warning: $staged_count files staged in one commit."
+    echo "Prefer one file or one logical change per commit."
+    git diff --cached --name-only
+  fi
+fi
