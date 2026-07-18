@@ -1,0 +1,23 @@
+msg_file="$1"
+first_line=$(head -n1 "$msg_file")
+
+pattern='^(feat|fix|style|refactor|chore|docs|test|perf|build|ci)(\([a-z0-9._-]+\))?: .{1,}$'
+
+if ! echo "$first_line" | grep -qE "$pattern"; then
+  echo "Commit message does not follow Conventional Commits format."
+  echo ""
+  echo "  Got:      $first_line"
+  echo "  Expected: <type>(<optional scope>): <description>"
+  echo "  Types:    feat | fix | style | refactor | chore | docs | test | perf | build | ci"
+  echo ""
+  echo "  Examples:"
+  echo "    feat: add login form component"
+  echo "    fix: correct OTP validation logic"
+  echo "    chore: install next-intl dependency"
+  exit 1
+fi
+
+if grep -qiE "co-authored-by|generated with claude|claude code|anthropic" "$msg_file"; then
+  echo "Commit message must not include AI/co-author attribution."
+  exit 1
+fi
