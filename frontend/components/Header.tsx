@@ -3,6 +3,7 @@
 import React from "react";
 import { Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -27,7 +28,8 @@ export function Header({ onMenuClick }: HeaderProps) {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <NotificationBell />
           <ThemeToggle />
         </div>
       </div>
