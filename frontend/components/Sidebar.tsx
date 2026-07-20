@@ -7,6 +7,7 @@ import {
   MessageCircle,
   BookOpen,
   Trophy,
+  Users,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const menuItems: MenuItemType[] = [
   { id: "home", label: "Home", icon: Home, path: "/dashboard" },
   { id: "chats", label: "Chats", icon: MessageCircle, path: "/chats" },
   { id: "courses", label: "Courses", icon: BookOpen, path: "/courses" },
+  { id: "matches", label: "Tandem partners", icon: Users, path: "/matches" },
   { id: "leaderboard", label: "Leaderboard", icon: Trophy, path: "/leaderboard" },
 ];
 
