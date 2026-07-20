@@ -1,0 +1,81 @@
+import type { IncomingMatchRequest, TandemPartner } from "@/types/match";
+
+export const partners: TandemPartner[] = [
+  {
+    id: "p1",
+    name: "Amina Yusuf",
+    initials: "AY",
+    country: "Kenya",
+    speaks: ["Swahili"],
+    learning: ["English"],
+    proficiency: "beginner",
+    availability: ["Evenings", "Weekends"],
+  },
+  {
+    id: "p2",
+    name: "Tunde Bakare",
+    initials: "TB",
+    country: "Nigeria",
+    speaks: ["Yoruba", "English"],
+    learning: ["Swahili"],
+    proficiency: "intermediate",
+    availability: ["Mornings"],
+  },
+  {
+    id: "p3",
+    name: "Selam Girma",
+    initials: "SG",
+    country: "Ethiopia",
+    speaks: ["Amharic"],
+    learning: ["French"],
+    proficiency: "beginner",
+    availability: ["Weekends"],
+  },
+  {
+    id: "p4",
+    name: "Thandiwe Nkosi",
+    initials: "TN",
+    country: "South Africa",
+    speaks: ["Zulu", "English"],
+    learning: ["Portuguese"],
+    proficiency: "advanced",
+    availability: ["Evenings"],
+  },
+  {
+    id: "p5",
+    name: "Ibrahim Sani",
+    initials: "IS",
+    country: "Nigeria",
+    speaks: ["Hausa"],
+    learning: ["Arabic"],
+    proficiency: "intermediate",
+    availability: ["Mornings", "Weekends"],
+  },
+  {
+    id: "p6",
+    name: "Claudine Uwase",
+    initials: "CU",
+    country: "Rwanda",
+    speaks: ["Kinyarwanda", "French"],
+    learning: ["English"],
+    proficiency: "advanced",
+    availability: ["Evenings"],
+  },
+];
+
+export const incomingRequests: IncomingMatchRequest[] = [
+  {
+    id: "r1",
+    name: "Kwame Mensah",
+    initials: "KM",
+    country: "Ghana",
+    message: "Hi! I'd love to practice Swahili with you in exchange for English.",
+  },
+  {
+    id: "r2",
+    name: "Fatima Bello",
+    initials: "FB",
+    country: "Senegal",
+    message: "Looking for a Yoruba partner — happy to help with French.",
+  },
+];
