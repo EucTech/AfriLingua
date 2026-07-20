@@ -1,4 +1,7 @@
-import { CheckCircle2 } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { CheckCircle2, Download, HardDriveDownload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { courses } from "@/features/courses/data/courses";
@@ -11,6 +14,7 @@ const levelStyles: Record<CourseLevel, string> = {
 };
 
 function CourseCard({ course }: { course: Course }) {
+  const [downloaded, setDownloaded] = useState(false);
   const progress = Math.round((course.completedLessons / course.totalLessons) * 100);
   const isComplete = course.completedLessons === course.totalLessons;
   const isStarted = course.completedLessons > 0;
@@ -58,9 +62,23 @@ function CourseCard({ course }: { course: Course }) {
         </div>
       </div>
 
-      <Button variant={isComplete ? "secondary" : isStarted ? "default" : "outline"} className="mt-auto">
-        {isComplete ? "Review course" : isStarted ? "Continue" : "Start course"}
-      </Button>
+      <div className="mt-auto flex gap-2">
+        <Button
+          variant={isComplete ? "secondary" : isStarted ? "default" : "outline"}
+          className="flex-1"
+        >
+          {isComplete ? "Review course" : isStarted ? "Continue" : "Start course"}
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label={downloaded ? "Downloaded for offline" : "Download for offline"}
+          onClick={() => setDownloaded((prev) => !prev)}
+          className={cn(downloaded && "text-success border-success/40")}
+        >
+          {downloaded ? <HardDriveDownload size={16} /> : <Download size={16} />}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -71,7 +89,7 @@ export function CoursesPage() {
       <div>
         <h1 className="text-foreground text-xl font-semibold tracking-tight">Courses</h1>
         <p className="text-muted-foreground text-sm">
-          Pick a language and keep your streak going.
+          Pick a language and keep your streak going. Download lessons to learn offline.
         </p>
       </div>
 
