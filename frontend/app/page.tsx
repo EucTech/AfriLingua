@@ -1,10 +1,23 @@
+import { LandingNav } from "@/features/landing/components/LandingNav";
+import { HeroSection } from "@/features/landing/components/HeroSection";
+import { LanguageMarquee } from "@/features/landing/components/LanguageMarquee";
+import { FeaturesSection } from "@/features/landing/components/FeaturesSection";
+import { HowItWorksSection } from "@/features/landing/components/HowItWorksSection";
+import { CtaSection } from "@/features/landing/components/CtaSection";
+import { LandingFooter } from "@/features/landing/components/LandingFooter";
+
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-2 p-6 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight">AfriLingua</h1>
-      <p className="text-muted-foreground text-sm">
-        A multilingual platform for African languages, powered by AI.
-      </p>
-    </main>
+    <div className="flex min-h-screen flex-col">
+      <LandingNav />
+      <main className="flex-1">
+        <HeroSection />
+        <LanguageMarquee />
+        <FeaturesSection />
+        <HowItWorksSection />
+        <CtaSection />
+      </main>
+      <LandingFooter />
+    </div>
   );
 }
