@@ -1,6 +1,5 @@
 import { LandingNav } from "@/features/landing/components/LandingNav";
 import { HeroSection } from "@/features/landing/components/HeroSection";
-import { LanguageMarquee } from "@/features/landing/components/LanguageMarquee";
 import { FeaturesSection } from "@/features/landing/components/FeaturesSection";
 import { HowItWorksSection } from "@/features/landing/components/HowItWorksSection";
 import { CtaSection } from "@/features/landing/components/CtaSection";
@@ -12,7 +11,6 @@ export default function Home() {
       <LandingNav />
       <main className="flex-1">
         <HeroSection />
-        <LanguageMarquee />
         <FeaturesSection />
         <HowItWorksSection />
         <CtaSection />
