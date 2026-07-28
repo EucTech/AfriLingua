@@ -26,7 +26,7 @@ interface SidebarProps {
 }
 
 const menuItems: MenuItemType[] = [
-  { id: "home", label: "Home", icon: Home, path: "/dashboard" },
+  { id: "dashboard", label: "Dashboard", icon: Home, path: "/dashboard" },
   { id: "chats", label: "Chats", icon: MessageCircle, path: "/chats" },
   { id: "courses", label: "Courses", icon: BookOpen, path: "/courses" },
   { id: "matches", label: "Tandem partners", icon: Users, path: "/matches" },
