@@ -14,47 +14,60 @@ import {
 import { cn } from "@/lib/utils";
 import { incomingRequests as initialIncomingRequests, partners } from "@/features/matching/data/partners";
 import { useMatchRequests } from "@/features/matching/store/useMatchRequests";
+import type { CourseLevel } from "@/types/course";
 import type { IncomingMatchRequest, TandemPartner } from "@/types/match";
 
 const ALL = "all";
+
+const levelStyles: Record<CourseLevel, string> = {
+  beginner: "bg-success/10 text-success",
+  intermediate: "bg-info/10 text-info",
+  advanced: "bg-accent/10 text-accent",
+};
+
+function TagList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      <span className="text-muted-foreground shrink-0 font-medium">{label}</span>
+      {items.map((item) => (
+        <span key={item} className="bg-muted text-foreground rounded-full px-2 py-0.5 font-medium">
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function PartnerCard({ partner }: { partner: TandemPartner }) {
   const status = useMatchRequests((state) => state.statusFor(partner.id));
   const send = useMatchRequests((state) => state.send);
 
   return (
-    <div className="bg-card border-border flex flex-col gap-4 rounded-xl border p-5 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className="bg-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white">
-          {partner.initials}
+    <div className="bg-card border-border hover:border-foreground/15 flex flex-col gap-4 rounded-2xl border p-5 transition-colors">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white">
+            {partner.initials}
+          </div>
+          <div>
+            <p className="text-foreground text-sm font-semibold">{partner.name}</p>
+            <p className="text-muted-foreground text-xs">{partner.country}</p>
+          </div>
         </div>
-        <div>
-          <p className="text-foreground text-sm font-semibold">{partner.name}</p>
-          <p className="text-muted-foreground text-xs">{partner.country}</p>
-        </div>
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium capitalize",
+            levelStyles[partner.proficiency],
+          )}
+        >
+          {partner.proficiency}
+        </span>
       </div>
 
-      <div className="text-muted-foreground space-y-1 text-xs">
-        <p>
-          <span className="text-foreground font-medium">Speaks:</span> {partner.speaks.join(", ")}
-        </p>
-        <p>
-          <span className="text-foreground font-medium">Learning:</span> {partner.learning.join(", ")}
-        </p>
-        <p className="capitalize">
-          <span className="text-foreground font-medium">Level:</span> {partner.proficiency}
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {partner.availability.map((slot) => (
-          <span
-            key={slot}
-            className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium"
-          >
-            {slot}
-          </span>
-        ))}
+      <div className="space-y-1.5">
+        <TagList label="Speaks" items={partner.speaks} />
+        <TagList label="Learning" items={partner.learning} />
+        <TagList label="Free" items={partner.availability} />
       </div>
 
       <Button
@@ -83,7 +96,7 @@ function IncomingRequestRow({
   onDecline: () => void;
 }) {
   return (
-    <div className="bg-card border-border flex items-start gap-3 rounded-xl border p-4">
+    <div className="bg-card border-border flex items-start gap-3 rounded-2xl border p-4">
       <div className="bg-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white">
         {request.initials}
       </div>
@@ -138,7 +151,7 @@ export function MatchingPage() {
         <Users className="text-primary" size={22} />
         <div>
           <h1 className="text-foreground text-xl font-semibold tracking-tight">Tandem partners</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground mt-1 text-sm">
             Find a language exchange partner who speaks what you&apos;re learning.
           </p>
         </div>
@@ -160,7 +173,7 @@ export function MatchingPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="bg-card border-border flex flex-wrap gap-3 rounded-2xl border p-3">
         <Select value={country} onValueChange={setCountry}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Country" /></SelectTrigger>
           <SelectContent>
@@ -204,7 +217,9 @@ export function MatchingPage() {
       </div>
 
       {filtered.length === 0 && (
-        <p className="text-muted-foreground text-sm">No partners match those filters yet.</p>
+        <div className="bg-card border-border rounded-2xl border p-8 text-center">
+          <p className="text-muted-foreground text-sm">No partners match those filters yet.</p>
+        </div>
       )}
     </div>
   );
