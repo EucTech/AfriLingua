@@ -28,7 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
 
         <main className="flex-1 p-3">
-          <div className="bg-card rounded-b-xl border border-t-0 border-border min-h-[calc(100vh-5.5rem)] p-4 md:p-6">
+          <div className="bg-card rounded-b-2xl border border-t-0 border-border min-h-[calc(100vh-5.5rem)] p-6 md:p-10">
             {children}
           </div>
         </main>
