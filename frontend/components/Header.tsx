@@ -16,7 +16,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       <div
         className={cn(
           "flex items-center justify-between py-2.5 px-3 sm:px-4 md:px-6",
-          "bg-card border-border rounded-t-xl border",
+          "bg-card border-border rounded-t-2xl border",
         )}
       >
         <div className="flex flex-1 items-center gap-3">
