@@ -1,6 +1,8 @@
+"use client";
+
 import { Flame, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { leaderboard } from "@/features/leaderboard/data/leaderboard";
+import { useLeaderboard } from "@/features/leaderboard/hooks/useLeaderboard";
 import type { LeaderboardEntry } from "@/types/leaderboard";
 
 const rankBadgeStyles = ["bg-accent text-accent-foreground", "bg-muted text-foreground", "bg-muted text-foreground"];
@@ -57,6 +59,8 @@ function LeaderboardRow({ entry, rank }: { entry: LeaderboardEntry; rank: number
 }
 
 export function LeaderboardPage() {
+  const { entries, loading } = useLeaderboard();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
@@ -67,11 +71,15 @@ export function LeaderboardPage() {
         </div>
       </div>
 
-      <ul className="space-y-2">
-        {leaderboard.map((entry, index) => (
-          <LeaderboardRow key={entry.id} entry={entry} rank={index + 1} />
-        ))}
-      </ul>
+      {loading ? (
+        <p className="text-muted-foreground text-sm">Loading…</p>
+      ) : (
+        <ul className="space-y-2">
+          {entries.map((entry, index) => (
+            <LeaderboardRow key={entry.id} entry={entry} rank={index + 1} />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
