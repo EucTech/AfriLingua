@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { Flame, Trophy, Zap, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { courses } from "@/features/courses/data/courses";
+import { useCourses } from "@/features/courses/hooks/useCourses";
 import { courseProgress } from "@/features/courses/lib/progress";
 import { useLessonProgress } from "@/features/courses/store/useLessonProgress";
-import { leaderboard } from "@/features/leaderboard/data/leaderboard";
+import { useLeaderboard } from "@/features/leaderboard/hooks/useLeaderboard";
+import { useAuth } from "@/features/auth/store/useAuth";
 
 const statToneStyles = {
   accent: "text-accent",
@@ -15,8 +16,11 @@ const statToneStyles = {
 } as const;
 
 export default function DashboardPage() {
+  const user = useAuth((state) => state.user);
+  const { courses } = useCourses();
   const lessonCompletion = useLessonProgress((state) => state.completed);
-  const currentUser = leaderboard.find((entry) => entry.isCurrentUser);
+  const { entries: leaderboard, loading: leaderboardLoading } = useLeaderboard();
+
   const rank = leaderboard.findIndex((entry) => entry.isCurrentUser) + 1;
   const activeCourse = courses.find((course) => {
     const { completed, total } = courseProgress(course, lessonCompletion);
@@ -28,16 +32,16 @@ export default function DashboardPage() {
     : 0;
 
   const stats = [
-    { label: "Day streak", value: currentUser?.streakDays ?? 0, icon: Flame, tone: "accent" as const },
-    { label: "Total XP", value: currentUser?.xp ?? 0, icon: Zap, tone: "info" as const },
-    { label: "Leaderboard rank", value: `#${rank}`, icon: Trophy, tone: "success" as const },
+    { label: "Day streak", value: user?.streakDays ?? 0, icon: Flame, tone: "accent" as const },
+    { label: "Total XP", value: user?.xp ?? 0, icon: Zap, tone: "info" as const },
+    { label: "Leaderboard rank", value: rank > 0 ? `#${rank}` : "—", icon: Trophy, tone: "success" as const },
   ];
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-foreground text-2xl font-semibold tracking-tight">
-          Welcome back, {currentUser?.name.split(" ")[0] ?? "there"}
+          Welcome back, {user?.name.split(" ")[0] ?? "there"}
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">Here&apos;s where you left off.</p>
       </div>
@@ -102,20 +106,24 @@ export default function DashboardPage() {
             View all
           </Link>
         </div>
-        <ul className="divide-border divide-y">
-          {leaderboard.slice(0, 3).map((entry, index) => (
-            <li key={entry.id} className="flex items-center gap-4 py-3 text-sm">
-              <span className="text-muted-foreground w-3 text-sm font-semibold tabular-nums">
-                {index + 1}
-              </span>
-              <div className="bg-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white">
-                {entry.initials}
-              </div>
-              <span className="text-foreground flex-1 truncate font-medium">{entry.name}</span>
-              <span className="text-muted-foreground text-xs">{entry.xp} XP</span>
-            </li>
-          ))}
-        </ul>
+        {leaderboardLoading ? (
+          <p className="text-muted-foreground text-sm">Loading…</p>
+        ) : (
+          <ul className="divide-border divide-y">
+            {leaderboard.slice(0, 3).map((entry, index) => (
+              <li key={entry.id} className="flex items-center gap-4 py-3 text-sm">
+                <span className="text-muted-foreground w-3 text-sm font-semibold tabular-nums">
+                  {index + 1}
+                </span>
+                <div className="bg-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white">
+                  {entry.initials}
+                </div>
+                <span className="text-foreground flex-1 truncate font-medium">{entry.name}</span>
+                <span className="text-muted-foreground text-xs">{entry.xp} XP</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
