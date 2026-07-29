@@ -1,226 +1,189 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, X, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Loader2, MessageCircle, Phone, Users, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { incomingRequests as initialIncomingRequests, partners } from "@/features/matching/data/partners";
-import { useMatchRequests } from "@/features/matching/store/useMatchRequests";
-import type { CourseLevel } from "@/types/course";
-import type { IncomingMatchRequest, TandemPartner } from "@/types/match";
+import { api, ApiError } from "@/lib/api";
+import { useCourses } from "@/features/courses/hooks/useCourses";
+import { courseProgress } from "@/features/courses/lib/progress";
+import { useLessonProgress } from "@/features/courses/store/useLessonProgress";
+import type { CallMode } from "@/types/call";
 
-const ALL = "all";
-
-const levelStyles: Record<CourseLevel, string> = {
-  beginner: "bg-success/10 text-success",
-  intermediate: "bg-info/10 text-info",
-  advanced: "bg-accent/10 text-accent",
-};
-
-function TagList({ label, items }: { label: string; items: string[] }) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 text-xs">
-      <span className="text-muted-foreground shrink-0 font-medium">{label}</span>
-      {items.map((item) => (
-        <span key={item} className="bg-muted text-foreground rounded-full px-2 py-0.5 font-medium">
-          {item}
-        </span>
-      ))}
-    </div>
-  );
+interface PracticeResponse {
+  callSessionId: string;
+  partner: { id: string; name: string; initials: string; country: string };
 }
 
-function PartnerCard({ partner }: { partner: TandemPartner }) {
-  const status = useMatchRequests((state) => state.statusFor(partner.id));
-  const send = useMatchRequests((state) => state.send);
+const modes: {
+  id: CallMode;
+  label: string;
+  icon: typeof Video;
+  title: string;
+  description: (language: string) => string;
+}[] = [
+  {
+    id: "video",
+    label: "Video",
+    icon: Video,
+    title: "Video Call",
+    description: (language) =>
+      `You'll be connected with someone who speaks ${language} for a face-to-face conversation`,
+  },
+  {
+    id: "audio",
+    label: "Audio",
+    icon: Phone,
+    title: "Audio Call",
+    description: (language) => `You'll be connected with someone who speaks ${language} for a voice conversation`,
+  },
+  {
+    id: "chat",
+    label: "Chat",
+    icon: MessageCircle,
+    title: "Text Chat",
+    description: (language) => `You'll be connected with someone who speaks ${language} for a live text conversation`,
+  },
+];
 
-  return (
-    <div className="bg-card border-border hover:border-foreground/15 flex flex-col gap-4 rounded-2xl border p-5 transition-colors">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white">
-            {partner.initials}
-          </div>
-          <div>
-            <p className="text-foreground text-sm font-semibold">{partner.name}</p>
-            <p className="text-muted-foreground text-xs">{partner.country}</p>
-          </div>
-        </div>
-        <span
-          className={cn(
-            "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium capitalize",
-            levelStyles[partner.proficiency],
-          )}
-        >
-          {partner.proficiency}
-        </span>
-      </div>
-
-      <div className="space-y-1.5">
-        <TagList label="Speaks" items={partner.speaks} />
-        <TagList label="Learning" items={partner.learning} />
-        <TagList label="Free" items={partner.availability} />
-      </div>
-
-      <Button
-        size="sm"
-        variant={status === "none" ? "default" : "secondary"}
-        disabled={status !== "none"}
-        onClick={() => {
-          send(partner.id);
-          toast.success(`Request sent to ${partner.name}`);
-        }}
-        className="mt-auto"
-      >
-        {status === "pending" ? "Request sent" : status === "accepted" ? "Connected" : "Send request"}
-      </Button>
-    </div>
-  );
-}
-
-function IncomingRequestRow({
-  request,
-  onAccept,
-  onDecline,
-}: {
-  request: IncomingMatchRequest;
-  onAccept: () => void;
-  onDecline: () => void;
-}) {
-  return (
-    <div className="bg-card border-border flex items-start gap-3 rounded-2xl border p-4">
-      <div className="bg-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white">
-        {request.initials}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-foreground text-sm font-medium">
-          {request.name} <span className="text-muted-foreground font-normal">· {request.country}</span>
-        </p>
-        <p className="text-muted-foreground text-xs">{request.message}</p>
-      </div>
-      <div className="flex shrink-0 gap-1.5">
-        <Button size="icon-sm" variant="outline" onClick={onAccept} aria-label="Accept">
-          <Check size={14} />
-        </Button>
-        <Button size="icon-sm" variant="outline" onClick={onDecline} aria-label="Decline">
-          <X size={14} />
-        </Button>
-      </div>
-    </div>
-  );
-}
+type Status = "idle" | "searching" | "matched";
 
 export function MatchingPage() {
-  const [country, setCountry] = useState(ALL);
-  const [language, setLanguage] = useState(ALL);
-  const [proficiency, setProficiency] = useState(ALL);
-  const [incoming, setIncoming] = useState(initialIncomingRequests);
+  const router = useRouter();
+  const { courses } = useCourses();
+  const lessonCompletion = useLessonProgress((state) => state.completed);
+  const activeCourse =
+    courses.find((course) => {
+      const progress = courseProgress(course, lessonCompletion);
+      return progress.completed > 0 && progress.completed < progress.total;
+    }) ?? courses[0];
 
-  const countries = useMemo(() => Array.from(new Set(partners.map((p) => p.country))), []);
-  const languages = useMemo(
-    () => Array.from(new Set(partners.flatMap((p) => p.speaks))),
-    [],
-  );
+  const [mode, setMode] = useState<CallMode>("video");
+  const [status, setStatus] = useState<Status>("idle");
+  const [matchedName, setMatchedName] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const filtered = partners.filter((partner) => {
-    if (country !== ALL && partner.country !== country) return false;
-    if (language !== ALL && !partner.speaks.includes(language)) return false;
-    if (proficiency !== ALL && partner.proficiency !== proficiency) return false;
-    return true;
-  });
+  const activeMode = modes.find((m) => m.id === mode) ?? modes[0];
+  const Icon = activeMode.icon;
 
-  const respond = (id: string, accepted: boolean) => {
-    const request = incoming.find((item) => item.id === id);
-    setIncoming((prev) => prev.filter((item) => item.id !== id));
-    if (request) {
-      toast.success(accepted ? `You're now connected with ${request.name}` : `Declined ${request.name}`);
+  if (!activeCourse) {
+    return <p className="text-muted-foreground text-sm">Loading…</p>;
+  }
+
+  const startSearch = async () => {
+    if (!activeCourse) return;
+    cancelledRef.current = false;
+    setStatus("searching");
+
+    const minDelay = new Promise((resolve) => setTimeout(resolve, 1800));
+    try {
+      const [result] = await Promise.all([
+        api.post<PracticeResponse>("/matching/practice", { mode, language: activeCourse.language }),
+        minDelay,
+      ]);
+      if (cancelledRef.current) return;
+
+      setMatchedName(result.partner.name);
+      setStatus("matched");
+
+      timeoutRef.current = setTimeout(() => {
+        if (cancelledRef.current) return;
+        router.push(`/call/${result.callSessionId}?mode=${mode}`);
+      }, 1100);
+    } catch (error) {
+      if (cancelledRef.current) return;
+      setStatus("idle");
+      toast.error(error instanceof ApiError ? error.message : "Couldn't find a partner. Try again.");
     }
   };
 
+  const cancelSearch = () => {
+    cancelledRef.current = true;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setStatus("idle");
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center gap-2">
         <Users className="text-primary" size={22} />
         <div>
           <h1 className="text-foreground text-xl font-semibold tracking-tight">Tandem partners</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Find a language exchange partner who speaks what you&apos;re learning.
+            Practice live with someone who speaks {activeCourse.language}.
           </p>
         </div>
       </div>
 
-      {incoming.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-foreground text-sm font-semibold">Incoming requests</h2>
-          <div className="space-y-2">
-            {incoming.map((request) => (
-              <IncomingRequestRow
-                key={request.id}
-                request={request}
-                onAccept={() => respond(request.id, true)}
-                onDecline={() => respond(request.id, false)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="bg-card border-border flex flex-wrap gap-3 rounded-2xl border p-3">
-        <Select value={country} onValueChange={setCountry}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Country" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All countries</SelectItem>
-            {countries.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={language} onValueChange={setLanguage}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Speaks" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any language</SelectItem>
-            {languages.map((l) => (
-              <SelectItem key={l} value={l}>{l}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={proficiency} onValueChange={setProficiency}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Level" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any level</SelectItem>
-            <SelectItem value="beginner">Beginner</SelectItem>
-            <SelectItem value="intermediate">Intermediate</SelectItem>
-            <SelectItem value="advanced">Advanced</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3",
-          filtered.length === 0 && "hidden",
-        )}
-      >
-        {filtered.map((partner) => (
-          <PartnerCard key={partner.id} partner={partner} />
+      <div className="bg-card border-border flex gap-1 rounded-full border p-1">
+        {modes.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => status === "idle" && setMode(m.id)}
+            disabled={status !== "idle"}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed",
+              mode === m.id
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted",
+            )}
+          >
+            <m.icon size={16} />
+            {m.label}
+          </button>
         ))}
       </div>
 
-      {filtered.length === 0 && (
-        <div className="bg-card border-border rounded-2xl border p-8 text-center">
-          <p className="text-muted-foreground text-sm">No partners match those filters yet.</p>
+      <div className="bg-primary/5 border-border rounded-2xl border px-14 py-10">
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-center">
+          {status === "idle" && (
+            <>
+              <div className="bg-primary/10 text-primary flex h-16 w-16 items-center justify-center rounded-full">
+                <Icon size={28} />
+              </div>
+              <h2 className="text-foreground text-lg font-semibold tracking-tight">{activeMode.title}</h2>
+              <p className="text-muted-foreground text-sm">{activeMode.description(activeCourse.language)}</p>
+
+              <button
+                onClick={startSearch}
+                className="bg-primary text-primary-foreground mt-3 rounded-full px-8 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+              >
+                Practice now
+              </button>
+            </>
+          )}
+
+          {status === "searching" && (
+            <>
+              <div className="bg-primary/10 text-primary flex h-16 w-16 items-center justify-center rounded-full">
+                <Loader2 size={28} className="animate-spin" />
+              </div>
+              <h2 className="text-foreground text-lg font-semibold tracking-tight">Looking for a partner…</h2>
+              <p className="text-muted-foreground text-sm">
+                Matching you with someone who speaks {activeCourse.language}.
+              </p>
+              <button
+                onClick={cancelSearch}
+                className="border-border text-muted-foreground hover:border-foreground/15 mt-3 rounded-full border px-6 py-2.5 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+
+          {status === "matched" && (
+            <>
+              <div className="bg-success/10 text-success flex h-16 w-16 items-center justify-center rounded-full">
+                <Icon size={28} />
+              </div>
+              <h2 className="text-foreground text-lg font-semibold tracking-tight">Partner found!</h2>
+              <p className="text-muted-foreground text-sm">Connecting you with {matchedName}…</p>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
