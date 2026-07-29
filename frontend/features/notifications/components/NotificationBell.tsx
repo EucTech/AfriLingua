@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { Bell, MessageCircle, Users, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/format";
 import { useNotifications } from "@/features/notifications/store/useNotifications";
 import type { NotificationType } from "@/types/notification";
 
@@ -15,9 +17,14 @@ const typeIcons: Record<NotificationType, typeof MessageCircle> = {
 
 export function NotificationBell() {
   const items = useNotifications((state) => state.items);
+  const load = useNotifications((state) => state.load);
   const markRead = useNotifications((state) => state.markRead);
   const markAllRead = useNotifications((state) => state.markAllRead);
   const unreadCount = items.filter((item) => !item.read).length;
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <Popover>
@@ -36,7 +43,7 @@ export function NotificationBell() {
           <p className="text-foreground text-sm font-semibold">Notifications</p>
           {unreadCount > 0 && (
             <button
-              onClick={markAllRead}
+              onClick={() => void markAllRead()}
               className="text-primary text-xs font-medium hover:underline"
             >
               Mark all as read
@@ -53,7 +60,7 @@ export function NotificationBell() {
             return (
               <button
                 key={item.id}
-                onClick={() => markRead(item.id)}
+                onClick={() => void markRead(item.id)}
                 className={cn(
                   "border-border/60 flex w-full items-start gap-3 border-b px-4 py-3 text-left last:border-b-0",
                   item.read ? "bg-transparent" : "bg-primary/5",
@@ -65,7 +72,7 @@ export function NotificationBell() {
                 <span className="min-w-0 flex-1">
                   <span className="text-foreground block text-sm font-medium">{item.title}</span>
                   <span className="text-muted-foreground block truncate text-xs">{item.body}</span>
-                  <span className="text-muted-foreground block text-[11px]">{item.timeAgo}</span>
+                  <span className="text-muted-foreground block text-[11px]">{timeAgo(item.createdAt)}</span>
                 </span>
                 {!item.read && <span className="bg-accent mt-1 h-2 w-2 shrink-0 rounded-full" />}
               </button>
