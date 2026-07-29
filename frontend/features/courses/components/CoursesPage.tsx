@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { courses } from "@/features/courses/data/courses";
+import { useCourses } from "@/features/courses/hooks/useCourses";
 import {
   activeTrack,
   courseProgress,
@@ -33,9 +33,11 @@ const levelStyles: Record<CourseLevel, string> = {
 };
 
 function SwitchCourseDialog({
+  courses,
   activeId,
   onConfirm,
 }: {
+  courses: Course[];
   activeId: string;
   onConfirm: (id: string) => void;
 }) {
@@ -355,14 +357,23 @@ function CourseDetail({ course }: { course: Course }) {
 }
 
 export function CoursesPage() {
-  const [activeId, setActiveId] = useState(courses[0]?.id ?? "");
+  const { courses, loading } = useCourses();
+  const [activeId, setActiveId] = useState<string | null>(null);
   const activeCourse = courses.find((course) => course.id === activeId) ?? courses[0];
+
+  if (loading) {
+    return <p className="text-muted-foreground text-sm">Loading courses…</p>;
+  }
+
+  if (!activeCourse) {
+    return <p className="text-muted-foreground text-sm">No courses available yet.</p>;
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <p className="text-muted-foreground text-sm">Pick a language and keep your streak going.</p>
-        <SwitchCourseDialog activeId={activeCourse.id} onConfirm={setActiveId} />
+        <SwitchCourseDialog courses={courses} activeId={activeCourse.id} onConfirm={setActiveId} />
       </div>
 
       <CourseDetail course={activeCourse} />
