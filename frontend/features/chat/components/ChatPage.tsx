@@ -1,16 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, MessageCircle, Search, Send } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { conversations as initialConversations } from "@/features/chat/data/conversations";
-import type { Conversation } from "@/types/chat";
+import { api } from "@/lib/api";
 
-function formatNow() {
-  return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+interface ConversationSummary {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  partnerInitials: string;
+  partnerLanguage: string;
+  lastMessage: { text: string; createdAt: string; from: "me" | "them" } | null;
+}
+
+interface ChatMessageDto {
+  id: string;
+  from: "me" | "them";
+  text: string;
+  createdAt: string;
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function ConversationRow({
@@ -18,12 +33,10 @@ function ConversationRow({
   active,
   onSelect,
 }: {
-  conversation: Conversation;
+  conversation: ConversationSummary;
   active: boolean;
   onSelect: () => void;
 }) {
-  const lastMessage = conversation.messages[conversation.messages.length - 1];
-
   return (
     <button
       onClick={onSelect}
@@ -32,33 +45,55 @@ function ConversationRow({
         active ? "bg-primary/5" : "hover:bg-muted/50",
       )}
     >
-      <div className="relative shrink-0">
-        <div className="bg-primary flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold text-white">
-          {conversation.partnerInitials}
-        </div>
-        {conversation.online && (
-          <span className="border-card absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 bg-success" />
-        )}
+      <div className="bg-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white">
+        {conversation.partnerInitials}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p className="text-foreground truncate text-sm font-semibold">{conversation.partnerName}</p>
-          <span className="text-muted-foreground shrink-0 text-[11px]">{lastMessage?.time}</span>
+          {conversation.lastMessage && (
+            <span className="text-muted-foreground shrink-0 text-[11px]">
+              {formatTime(conversation.lastMessage.createdAt)}
+            </span>
+          )}
         </div>
-        <p className="text-muted-foreground truncate text-xs">{lastMessage?.text}</p>
+        <p className="text-muted-foreground truncate text-xs">
+          {conversation.lastMessage?.text ?? "No messages yet"}
+        </p>
       </div>
     </button>
   );
 }
 
 export function ChatPage() {
-  const [conversations, setConversations] = useState(initialConversations);
-  const [activeId, setActiveId] = useState(initialConversations[0]?.id ?? "");
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
+  const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessageDto[]>>({});
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
 
+  useEffect(() => {
+    api
+      .get<ConversationSummary[]>("/chat/conversations")
+      .then((data) => {
+        setConversations(data);
+        setActiveId((current) => current ?? data[0]?.id ?? null);
+      })
+      .finally(() => setLoadingConversations(false));
+  }, []);
+
+  useEffect(() => {
+    if (!activeId || messagesByConversation[activeId]) return;
+    api.get<ChatMessageDto[]>(`/chat/conversations/${activeId}/messages`).then((data) => {
+      setMessagesByConversation((prev) => ({ ...prev, [activeId]: data }));
+    });
+  }, [activeId, messagesByConversation]);
+
+  const loadingMessages = Boolean(activeId && !messagesByConversation[activeId]);
   const activeConversation = conversations.find((c) => c.id === activeId);
+  const activeMessages = activeId ? (messagesByConversation[activeId] ?? []) : [];
   const filteredConversations = conversations.filter((c) =>
     c.partnerName.toLowerCase().includes(search.toLowerCase()),
   );
@@ -68,24 +103,29 @@ export function ChatPage() {
     setMobileThreadOpen(true);
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = draft.trim();
-    if (!text || !activeConversation) return;
+    if (!text || !activeId) return;
+    setDraft("");
 
+    const message = await api.post<ChatMessageDto>(`/chat/conversations/${activeId}/messages`, { text });
+    setMessagesByConversation((prev) => ({
+      ...prev,
+      [activeId]: [...(prev[activeId] ?? []), message],
+    }));
     setConversations((prev) =>
       prev.map((c) =>
-        c.id === activeConversation.id
-          ? { ...c, messages: [...c.messages, { id: crypto.randomUUID(), from: "me", text, time: formatNow() }] }
+        c.id === activeId
+          ? { ...c, lastMessage: { text: message.text, createdAt: message.createdAt, from: "me" } }
           : c,
       ),
     );
-    setDraft("");
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      sendMessage();
+      void sendMessage();
     }
   };
 
@@ -121,16 +161,18 @@ export function ChatPage() {
             </div>
           </div>
           <div className="scrollbar flex-1 space-y-0.5 overflow-y-auto p-2">
-            {filteredConversations.map((conversation) => (
-              <ConversationRow
-                key={conversation.id}
-                conversation={conversation}
-                active={conversation.id === activeId}
-                onSelect={() => selectConversation(conversation.id)}
-              />
-            ))}
-            {filteredConversations.length === 0 && (
-              <p className="text-muted-foreground p-3 text-sm">No conversations match your search.</p>
+            {loadingConversations && <p className="text-muted-foreground p-3 text-sm">Loading…</p>}
+            {!loadingConversations &&
+              filteredConversations.map((conversation) => (
+                <ConversationRow
+                  key={conversation.id}
+                  conversation={conversation}
+                  active={conversation.id === activeId}
+                  onSelect={() => selectConversation(conversation.id)}
+                />
+              ))}
+            {!loadingConversations && filteredConversations.length === 0 && (
+              <p className="text-muted-foreground p-3 text-sm">No conversations yet.</p>
             )}
           </div>
         </div>
@@ -158,32 +200,33 @@ export function ChatPage() {
                   <p className="text-foreground truncate text-sm font-semibold">
                     {activeConversation.partnerName}
                   </p>
-                  <p className="text-muted-foreground text-xs">
-                    {activeConversation.partnerLanguage} ·{" "}
-                    {activeConversation.online ? "Online" : "Offline"}
-                  </p>
+                  <p className="text-muted-foreground text-xs">{activeConversation.partnerLanguage}</p>
                 </div>
               </div>
 
               <div className="scrollbar flex-1 space-y-3 overflow-y-auto p-4">
-                {activeConversation.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn("flex flex-col", message.from === "me" ? "items-end" : "items-start")}
-                  >
+                {loadingMessages && <p className="text-muted-foreground text-sm">Loading…</p>}
+                {!loadingMessages &&
+                  activeMessages.map((message) => (
                     <div
-                      className={cn(
-                        "max-w-[75%] rounded-xl px-3.5 py-2.5 text-sm",
-                        message.from === "me"
-                          ? "bg-primary text-primary-foreground rounded-tr-sm"
-                          : "bg-muted rounded-tl-sm",
-                      )}
+                      key={message.id}
+                      className={cn("flex flex-col", message.from === "me" ? "items-end" : "items-start")}
                     >
-                      {message.text}
+                      <div
+                        className={cn(
+                          "max-w-[75%] rounded-xl px-3.5 py-2.5 text-sm",
+                          message.from === "me"
+                            ? "bg-primary text-primary-foreground rounded-tr-sm"
+                            : "bg-muted rounded-tl-sm",
+                        )}
+                      >
+                        {message.text}
+                      </div>
+                      <span className="text-muted-foreground mt-1 text-[11px]">
+                        {formatTime(message.createdAt)}
+                      </span>
                     </div>
-                    <span className="text-muted-foreground mt-1 text-[11px]">{message.time}</span>
-                  </div>
-                ))}
+                  ))}
               </div>
 
               <div className="border-border flex items-end gap-2 border-t p-3">
@@ -195,14 +238,14 @@ export function ChatPage() {
                   rows={1}
                   className="max-h-32 min-h-11 py-2.5"
                 />
-                <Button size="icon" onClick={sendMessage} disabled={!draft.trim()} aria-label="Send message">
+                <Button size="icon" onClick={() => void sendMessage()} disabled={!draft.trim()} aria-label="Send message">
                   <Send size={16} />
                 </Button>
               </div>
             </>
           ) : (
             <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-              Select a conversation to start chatting.
+              {loadingConversations ? "Loading…" : "Select a conversation to start chatting."}
             </div>
           )}
         </div>
