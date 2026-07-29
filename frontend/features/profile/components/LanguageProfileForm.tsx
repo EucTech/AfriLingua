@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { api, ApiError } from "@/lib/api";
 import {
   GOAL_OPTIONS,
   SPOKEN_LANGUAGE_OPTIONS,
   TARGET_LANGUAGE_OPTIONS,
 } from "@/features/profile/data/options";
 import type { CourseLevel } from "@/types/course";
+
+interface LanguageProfileDto {
+  spokenLanguages: string[];
+  targetLanguages: string[];
+  proficiency: CourseLevel;
+  goals: string[];
+}
+
+interface MeResponse {
+  languageProfile: LanguageProfileDto | null;
+}
 
 function toggle(list: string[], value: string) {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -62,12 +74,40 @@ export function LanguageProfileForm() {
   const [targetLanguages, setTargetLanguages] = useState<string[]>(["Swahili"]);
   const [proficiency, setProficiency] = useState<CourseLevel>("beginner");
   const [goals, setGoals] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.get<MeResponse>("/users/me").then((me) => {
+      if (!me.languageProfile) return;
+      if (me.languageProfile.spokenLanguages.length > 0) {
+        setSpokenLanguages(me.languageProfile.spokenLanguages);
+      }
+      if (me.languageProfile.targetLanguages.length > 0) {
+        setTargetLanguages(me.languageProfile.targetLanguages);
+      }
+      setProficiency(me.languageProfile.proficiency);
+      setGoals(me.languageProfile.goals);
+    });
+  }, []);
 
   const canSave = spokenLanguages.length > 0 && targetLanguages.length > 0;
 
-  const handleSave = () => {
-    toast.success("Language profile saved");
-    router.push("/dashboard");
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.patch("/users/me/language-profile", {
+        spokenLanguages,
+        targetLanguages,
+        proficiency,
+        goals,
+      });
+      toast.success("Language profile saved");
+      router.push("/dashboard");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Couldn't save your profile.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -122,8 +162,8 @@ export function LanguageProfileForm() {
         />
       </div>
 
-      <Button onClick={handleSave} disabled={!canSave} className="w-full sm:w-auto">
-        Save profile
+      <Button onClick={() => void handleSave()} disabled={!canSave || saving} className="w-full sm:w-auto">
+        {saving ? "Saving…" : "Save profile"}
       </Button>
     </div>
   );
