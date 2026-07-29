@@ -1,0 +1,25 @@
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { RequestUser } from '../auth/current-user.decorator';
+import { MatchingService } from './matching.service';
+import { PracticeDto } from './dto/practice.dto';
+
+@ApiTags('matching')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('matching')
+export class MatchingController {
+  constructor(private readonly matchingService: MatchingService) {}
+
+  @Get('partners')
+  findPartners(@CurrentUser() user: RequestUser) {
+    return this.matchingService.findPartners(user.userId);
+  }
+
+  @Post('practice')
+  practice(@CurrentUser() user: RequestUser, @Body() dto: PracticeDto) {
+    return this.matchingService.practice(user.userId, dto);
+  }
+}
