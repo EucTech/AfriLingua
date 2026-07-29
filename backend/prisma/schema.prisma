@@ -1,0 +1,264 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CourseLevel {
+  beginner
+  intermediate
+  advanced
+}
+
+enum CallMode {
+  video
+  audio
+  chat
+}
+
+enum NotificationType {
+  message
+  match
+  reminder
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  country      String?
+  avatarUrl    String?
+  xp           Int      @default(0)
+  streakDays   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  languageProfile         LanguageProfile?
+  notificationPreferences NotificationPreferences?
+  accessibilityPreferences AccessibilityPreferences?
+
+  lessonProgress LessonProgress[]
+  notifications  Notification[]
+
+  sentMessages  ChatMessage[]
+  conversations ConversationParticipant[]
+  callSessions  CallParticipant[]
+
+  matchRequestsSent     MatchRequest[] @relation("MatchRequestsSent")
+  matchRequestsReceived MatchRequest[] @relation("MatchRequestsReceived")
+
+  @@map("users")
+}
+
+model LanguageProfile {
+  id               String      @id @default(uuid())
+  userId           String      @unique
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spokenLanguages  String[]
+  targetLanguages  String[]
+  proficiency      CourseLevel @default(beginner)
+  goals            String[]
+  availability     String[]
+
+  @@map("language_profiles")
+}
+
+model NotificationPreferences {
+  id                String  @id @default(uuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages          Boolean @default(true)
+  matches           Boolean @default(true)
+  reminders         Boolean @default(true)
+  quietHoursEnabled Boolean @default(false)
+  quietHoursStart   String  @default("22:00")
+  quietHoursEnd     String  @default("07:00")
+
+  @@map("notification_preferences")
+}
+
+model AccessibilityPreferences {
+  id                String  @id @default(uuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interfaceLanguage String  @default("English")
+  liteMode          Boolean @default(false)
+
+  @@map("accessibility_preferences")
+}
+
+model Course {
+  id          String       @id
+  language    String
+  nativeName  String
+  flagEmoji   String
+  description String
+  tracks      LevelTrack[]
+
+  @@map("courses")
+}
+
+model LevelTrack {
+  id          String      @id @default(uuid())
+  courseId    String
+  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  level       CourseLevel
+  cefr        String
+  description String
+  locked      Boolean     @default(true)
+  chapters    Chapter[]
+
+  @@unique([courseId, level])
+  @@map("level_tracks")
+}
+
+model Chapter {
+  id       String     @id @default(uuid())
+  trackId  String
+  track    LevelTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  title    String
+  order    Int
+  lessons  Lesson[]
+
+  @@map("chapters")
+}
+
+model Lesson {
+  id           String   @id @default(uuid())
+  chapterId    String
+  chapter      Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  title        String
+  videoTitle   String
+  videoMinutes Int
+  videoUrl     String
+  order        Int
+
+  words          VocabWord[]
+  quiz           QuizQuestion[]
+  lessonProgress LessonProgress[]
+
+  @@map("lessons")
+}
+
+model VocabWord {
+  id          String @id @default(uuid())
+  lessonId    String
+  lesson      Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  word        String
+  translation String
+  order       Int
+
+  @@map("vocab_words")
+}
+
+model QuizQuestion {
+  id           String   @id @default(uuid())
+  lessonId     String
+  lesson       Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  prompt       String
+  options      String[]
+  correctIndex Int
+  order        Int
+
+  @@map("quiz_questions")
+}
+
+model LessonProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completedAt DateTime @default(now())
+
+  @@unique([userId, lessonId])
+  @@map("lesson_progress")
+}
+
+model MatchRequest {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("MatchRequestsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("MatchRequestsReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+  message    String?
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+
+  @@map("match_requests")
+}
+
+model Conversation {
+  id           String                     @id @default(uuid())
+  createdAt    DateTime                   @default(now())
+  participants ConversationParticipant[]
+  messages     ChatMessage[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+model ChatMessage {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  text           String
+  createdAt      DateTime     @default(now())
+
+  @@map("chat_messages")
+}
+
+model CallSession {
+  id              String            @id @default(uuid())
+  mode            CallMode
+  startedAt       DateTime          @default(now())
+  endedAt         DateTime?
+  durationSeconds Int?
+  participants    CallParticipant[]
+
+  @@map("call_sessions")
+}
+
+model CallParticipant {
+  id            String      @id @default(uuid())
+  callSessionId String
+  callSession   CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([callSessionId, userId])
+  @@map("call_participants")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@map("notifications")
+}
