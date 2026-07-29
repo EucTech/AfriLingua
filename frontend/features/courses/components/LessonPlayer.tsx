@@ -1,18 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { courses } from "@/features/courses/data/courses";
+import { useCourses } from "@/features/courses/hooks/useCourses";
 import { activeTrack, flattenTrack, lessonAt, nextLessonFor } from "@/features/courses/lib/progress";
 import { useLessonProgress } from "@/features/courses/store/useLessonProgress";
 
 type Step = "video" | "words" | "quiz" | "done";
 
 export function LessonPlayer({ courseId }: { courseId: string }) {
+  const { courses, loading } = useCourses();
   const course = courses.find((c) => c.id === courseId);
   const completed = useLessonProgress((state) => state.completed);
   const complete = useLessonProgress((state) => state.complete);
@@ -20,20 +21,25 @@ export function LessonPlayer({ courseId }: { courseId: string }) {
   const requestedLessonId = searchParams.get("lesson");
 
   const track = course ? activeTrack(course) : null;
-  const lessons = useMemo(() => (track ? flattenTrack(track) : []), [track]);
+  const lessons = track ? flattenTrack(track) : [];
 
-  const [lessonId, setLessonId] = useState(() => {
-    if (!course) return "";
-    if (requestedLessonId && lessons.some((entry) => entry.lesson.id === requestedLessonId)) {
-      return requestedLessonId;
-    }
-    return nextLessonFor(course, completed)?.lesson.id ?? lessons[0]?.lesson.id ?? "";
-  });
+  const [overrideLessonId, setOverrideLessonId] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("video");
   const [wordIndex, setWordIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [quizIndex, setQuizIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
+
+  const initialLessonId = course
+    ? requestedLessonId && lessons.some((entry) => entry.lesson.id === requestedLessonId)
+      ? requestedLessonId
+      : (nextLessonFor(course, completed)?.lesson.id ?? lessons[0]?.lesson.id ?? null)
+    : null;
+  const lessonId = overrideLessonId ?? initialLessonId;
+
+  if (loading) {
+    return <p className="text-muted-foreground text-sm">Loading lesson…</p>;
+  }
 
   if (!course || !track) {
     return (
@@ -46,7 +52,7 @@ export function LessonPlayer({ courseId }: { courseId: string }) {
     );
   }
 
-  const position = lessonAt(course, lessonId);
+  const position = lessonId ? lessonAt(course, lessonId) : null;
   if (!position) {
     return (
       <div className="space-y-4">
@@ -65,7 +71,7 @@ export function LessonPlayer({ courseId }: { courseId: string }) {
   const score = lesson.quiz.filter((q) => answers[q.id] === q.correctIndex).length;
 
   const resetToLesson = (nextLessonId: string) => {
-    setLessonId(nextLessonId);
+    setOverrideLessonId(nextLessonId);
     setStep("video");
     setWordIndex(0);
     setRevealed(false);
@@ -74,7 +80,7 @@ export function LessonPlayer({ courseId }: { courseId: string }) {
   };
 
   const finishLesson = () => {
-    complete(lesson.id);
+    void complete(lesson.id);
     setStep("done");
   };
 
