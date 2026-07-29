@@ -8,9 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerSchema, type RegisterValues } from "@/features/auth/schemas/auth.schemas";
+import { api, ApiError } from "@/lib/api";
+import { useAuth, type AuthUser } from "@/features/auth/store/useAuth";
+
+interface AuthResponse {
+  accessToken: string;
+  user: AuthUser;
+}
 
 export function RegisterForm() {
   const router = useRouter();
+  const setSession = useAuth((state) => state.setSession);
   const {
     register,
     handleSubmit,
@@ -18,9 +26,14 @@ export function RegisterForm() {
   } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   const onSubmit = async (values: RegisterValues) => {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    toast.success(`Account created for ${values.name}`);
-    router.push("/profile");
+    try {
+      const { accessToken, user } = await api.post<AuthResponse>("/auth/register", values);
+      setSession(accessToken, user);
+      toast.success(`Account created for ${user.name.split(" ")[0]}`);
+      router.push("/profile");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Couldn't create your account. Try again.");
+    }
   };
 
   return (

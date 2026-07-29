@@ -8,9 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginSchema, type LoginValues } from "@/features/auth/schemas/auth.schemas";
+import { api, ApiError } from "@/lib/api";
+import { useAuth, type AuthUser } from "@/features/auth/store/useAuth";
+
+interface AuthResponse {
+  accessToken: string;
+  user: AuthUser;
+}
 
 export function LoginForm() {
   const router = useRouter();
+  const setSession = useAuth((state) => state.setSession);
   const {
     register,
     handleSubmit,
@@ -18,9 +26,14 @@ export function LoginForm() {
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = async (values: LoginValues) => {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    toast.success(`Welcome back, ${values.email}`);
-    router.push("/dashboard");
+    try {
+      const { accessToken, user } = await api.post<AuthResponse>("/auth/login", values);
+      setSession(accessToken, user);
+      toast.success(`Welcome back, ${user.name.split(" ")[0]}`);
+      router.push("/dashboard");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Couldn't sign in. Try again.");
+    }
   };
 
   return (
