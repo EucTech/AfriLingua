@@ -9,8 +9,10 @@ import {
   Trophy,
   Users,
   Settings,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/features/auth/store/useAuth";
 
 interface MenuItemType {
   id: string;
@@ -36,11 +38,6 @@ const menuItems: MenuItemType[] = [
 const bottomMenuItems: MenuItemType[] = [
   { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
 ];
-
-const placeholderUser = {
-  name: "Guest User",
-  initials: "GU",
-};
 
 function renderMenuItem(
   item: MenuItemType,
@@ -94,9 +91,17 @@ function renderMenuItem(
 export function Sidebar({ open, onClose, collapsed }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const user = useAuth((state) => state.user);
+  const logout = useAuth((state) => state.logout);
 
   const handleNavigation = (path: string) => {
     router.push(path);
+    if (open) onClose();
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
     if (open) onClose();
   };
 
@@ -164,15 +169,28 @@ export function Sidebar({ open, onClose, collapsed }: SidebarProps) {
               compact ? "h-[28px] w-[28px]" : "h-[34px] w-[34px]",
             )}
           >
-            <span className="text-xs font-semibold text-white">{placeholderUser.initials}</span>
+            <span className="text-xs font-semibold text-white">{user?.initials ?? "?"}</span>
           </div>
           {!isCollapsed && (
             <div className="min-w-0 flex-1 text-left">
               <span className="text-foreground truncate text-[13px] font-semibold tracking-tight">
-                {placeholderUser.name}
+                {user?.name ?? "Loading…"}
               </span>
             </div>
           )}
+        </button>
+
+        <button
+          onClick={handleLogout}
+          className={cn(
+            "text-muted-foreground hover:text-destructive mt-1 flex w-full cursor-pointer items-center rounded-lg transition-colors",
+            compact ? "justify-center p-1.5" : isCollapsed ? "justify-center p-2.5" : "gap-2.5 p-2.5",
+          )}
+        >
+          <span className={cn("flex shrink-0 items-center justify-center", isCollapsed ? "" : "w-8")}>
+            <LogOut size={16} />
+          </span>
+          {!isCollapsed && <span className="text-xs font-medium">Log out</span>}
         </button>
       </div>
     </>
