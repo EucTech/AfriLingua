@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Bell, Accessibility } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,11 @@ export function SettingsPage() {
   const setNotifications = useSettings((state) => state.setNotifications);
   const accessibility = useSettings((state) => state.accessibility);
   const setAccessibility = useSettings((state) => state.setAccessibility);
+  const load = useSettings((state) => state.load);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <div className="max-w-2xl space-y-8">
