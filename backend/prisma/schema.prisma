@@ -17,6 +17,11 @@ enum CourseLevel {
   advanced
 }
 
+enum UserRole {
+  user
+  admin
+}
+
 enum CallMode {
   video
   audio
@@ -35,7 +40,10 @@ model User {
   passwordHash String
   name         String
   country      String?
+  bio          String?
+  address      String?
   avatarUrl    String?
+  role         UserRole @default(user)
   xp           Int      @default(0)
   streakDays   Int      @default(0)
   createdAt    DateTime @default(now())
