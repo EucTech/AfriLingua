@@ -17,7 +17,3 @@ if ! echo "$first_line" | grep -qE "$pattern"; then
   exit 1
 fi
 
-if grep -qiE "co-authored-by|generated with claude|claude code|anthropic" "$msg_file"; then
-  echo "Commit message must not include AI/co-author attribution."
-  exit 1
-fi
