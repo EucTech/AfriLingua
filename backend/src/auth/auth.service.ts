@@ -13,8 +13,8 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  private async issueToken(userId: string, email: string) {
-    return this.jwt.signAsync({ sub: userId, email });
+  private async issueToken(userId: string, email: string, role: string) {
+    return this.jwt.signAsync({ sub: userId, email, role });
   }
 
   private toPublicUser(user: {
@@ -23,6 +23,7 @@ export class AuthService {
     name: string;
     country: string | null;
     avatarUrl: string | null;
+    role: string;
     xp: number;
     streakDays: number;
   }) {
@@ -32,6 +33,7 @@ export class AuthService {
       name: user.name,
       country: user.country,
       avatarUrl: user.avatarUrl,
+      role: user.role,
       xp: user.xp,
       streakDays: user.streakDays,
       initials: initialsFromName(user.name),
@@ -58,7 +60,7 @@ export class AuthService {
       },
     });
 
-    const accessToken = await this.issueToken(user.id, user.email);
+    const accessToken = await this.issueToken(user.id, user.email, user.role);
     return { accessToken, user: this.toPublicUser(user) };
   }
 
@@ -73,7 +75,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const accessToken = await this.issueToken(user.id, user.email);
+    const accessToken = await this.issueToken(user.id, user.email, user.role);
     return { accessToken, user: this.toPublicUser(user) };
   }
 
