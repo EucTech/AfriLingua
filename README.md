@@ -2,6 +2,8 @@
 
 AfriLingua is a peer-to-peer language exchange platform for African languages. Users work through structured courses, then get matched live with a "tandem partner" for video, audio, or text practice.
 
+**Live app:** https://afrilingua-web.vercel.app/
+
 The project is a monorepo with two independent apps:
 
 ```
