@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Home,
@@ -10,8 +11,10 @@ import {
   Users,
   Settings,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveAssetUrl } from "@/lib/api";
 import { useAuth } from "@/features/auth/store/useAuth";
 
 interface MenuItemType {
@@ -117,11 +120,16 @@ export function Sidebar({ open, onClose, collapsed }: SidebarProps) {
         )}
       >
         {isCollapsed && !compact ? (
-          <span className="bg-primary flex h-8 w-8 items-center justify-center rounded-md text-sm font-bold text-white">
-            A
-          </span>
+          <Image src="/images/icon-cropped.png" alt="AfriLingua" width={596} height={596} className="h-8 w-8" />
         ) : (
-          <span className="text-primary text-lg font-bold tracking-tight">AfriLingua</span>
+          <Image
+            src="/images/logo-cropped.png"
+            alt="AfriLingua"
+            width={1190}
+            height={284}
+            className="h-6 w-auto"
+            priority
+          />
         )}
       </div>
 
@@ -147,7 +155,12 @@ export function Sidebar({ open, onClose, collapsed }: SidebarProps) {
         )}
       >
         <nav>
-          {bottomMenuItems.map((item) =>
+          {[
+            ...bottomMenuItems,
+            ...(user?.role === "admin"
+              ? [{ id: "admin", label: "Admin", icon: ShieldCheck, path: "/admin" }]
+              : []),
+          ].map((item) =>
             renderMenuItem(item, isItemActive(item.path), isCollapsed, compact, handleNavigation),
           )}
         </nav>
@@ -169,11 +182,23 @@ export function Sidebar({ open, onClose, collapsed }: SidebarProps) {
               compact ? "h-[28px] w-[28px]" : "h-[34px] w-[34px]",
             )}
           >
-            <span className="text-xs font-semibold text-white">{user?.initials ?? "?"}</span>
+            {user?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={resolveAssetUrl(user.avatarUrl)}
+                alt={user.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-xs font-semibold text-white">{user?.initials ?? "?"}</span>
+            )}
           </div>
           {!isCollapsed && (
             <div className="min-w-0 flex-1 text-left">
-              <span className="text-foreground truncate text-[13px] font-semibold tracking-tight">
+              <span
+                className="text-foreground block truncate text-[13px] font-semibold tracking-tight"
+                style={{ color: "var(--foreground)" }}
+              >
                 {user?.name ?? "Loading…"}
               </span>
             </div>
