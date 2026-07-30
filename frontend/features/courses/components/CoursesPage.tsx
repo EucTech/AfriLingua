@@ -356,13 +356,46 @@ function CourseDetail({ course }: { course: Course }) {
   );
 }
 
+function CoursesSkeleton() {
+  return (
+    <div className="animate-pulse space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="bg-muted h-4 w-56 rounded" />
+        <div className="bg-muted h-9 w-32 rounded-full" />
+      </div>
+
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="bg-muted h-14 w-14 shrink-0 rounded-full" />
+          <div className="space-y-2">
+            <div className="bg-muted h-6 w-32 rounded" />
+            <div className="bg-muted h-4 w-48 rounded" />
+          </div>
+        </div>
+        <div className="bg-muted h-14 w-16 shrink-0 rounded-2xl" />
+      </div>
+
+      <div className="bg-card border-border rounded-2xl border p-5">
+        <div className="bg-muted h-4 w-40 rounded" />
+        <div className="bg-muted mt-3 h-1.5 w-full rounded-full" />
+      </div>
+
+      <div className="space-y-2">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="bg-card border-border h-16 rounded-2xl border" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function CoursesPage() {
   const { courses, loading } = useCourses();
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeCourse = courses.find((course) => course.id === activeId) ?? courses[0];
 
   if (loading) {
-    return <p className="text-muted-foreground text-sm">Loading courses…</p>;
+    return <CoursesSkeleton />;
   }
 
   if (!activeCourse) {

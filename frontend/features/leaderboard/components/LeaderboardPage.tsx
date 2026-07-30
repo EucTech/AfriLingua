@@ -27,6 +27,22 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
+function LeaderboardSkeleton() {
+  return (
+    <ul className="space-y-2">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <li key={i} className="bg-card border-border flex animate-pulse items-center gap-4 rounded-xl border px-4 py-3">
+          <div className="bg-muted h-8 w-8 shrink-0 rounded-full" />
+          <div className="bg-muted h-9 w-9 shrink-0 rounded-full" />
+          <div className="bg-muted h-3 flex-1 rounded" />
+          <div className="bg-muted h-3 w-8 rounded" />
+          <div className="bg-muted h-3 w-12 rounded" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function LeaderboardRow({ entry, rank }: { entry: LeaderboardEntry; rank: number }) {
   return (
     <li
@@ -72,7 +88,7 @@ export function LeaderboardPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground text-sm">Loading…</p>
+        <LeaderboardSkeleton />
       ) : (
         <ul className="space-y-2">
           {entries.map((entry, index) => (

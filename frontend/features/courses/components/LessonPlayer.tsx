@@ -38,7 +38,19 @@ export function LessonPlayer({ courseId }: { courseId: string }) {
   const lessonId = overrideLessonId ?? initialLessonId;
 
   if (loading) {
-    return <p className="text-muted-foreground text-sm">Loading lesson…</p>;
+    return (
+      <div className="mx-auto max-w-2xl animate-pulse space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="bg-muted h-9 w-9 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="bg-muted h-3 w-24 rounded" />
+            <div className="bg-muted h-4 w-40 rounded" />
+          </div>
+        </div>
+        <div className="bg-muted h-1.5 w-full rounded-full" />
+        <div className="bg-card border-border h-72 rounded-2xl border" />
+      </div>
+    );
   }
 
   if (!course || !track) {

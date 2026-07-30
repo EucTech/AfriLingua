@@ -69,7 +69,19 @@ export function MatchingPage() {
   const Icon = activeMode.icon;
 
   if (!activeCourse) {
-    return <p className="text-muted-foreground text-sm">Loading…</p>;
+    return (
+      <div className="mx-auto max-w-2xl animate-pulse space-y-6">
+        <div className="flex items-center gap-2">
+          <div className="bg-muted h-6 w-6 rounded-full" />
+          <div className="space-y-2">
+            <div className="bg-muted h-5 w-40 rounded" />
+            <div className="bg-muted h-3 w-56 rounded" />
+          </div>
+        </div>
+        <div className="bg-card border-border h-12 rounded-full border" />
+        <div className="bg-primary/5 border-border h-72 rounded-2xl border" />
+      </div>
+    );
   }
 
   const startSearch = async () => {

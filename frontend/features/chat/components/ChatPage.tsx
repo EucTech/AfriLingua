@@ -28,6 +28,38 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function ConversationListSkeleton() {
+  return (
+    <div className="space-y-0.5">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex animate-pulse items-center gap-3 rounded-xl px-3 py-2.5">
+          <div className="bg-muted h-10 w-10 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="bg-muted h-3 w-24 rounded" />
+            <div className="bg-muted h-2.5 w-32 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MessagesSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[
+        { align: "items-start", width: "w-48" },
+        { align: "items-end", width: "w-36" },
+        { align: "items-start", width: "w-40" },
+      ].map((row, i) => (
+        <div key={i} className={cn("flex animate-pulse flex-col", row.align)}>
+          <div className={cn("bg-muted h-9 rounded-xl", row.width)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ConversationRow({
   conversation,
   active,
@@ -161,7 +193,7 @@ export function ChatPage() {
             </div>
           </div>
           <div className="scrollbar flex-1 space-y-0.5 overflow-y-auto p-2">
-            {loadingConversations && <p className="text-muted-foreground p-3 text-sm">Loading…</p>}
+            {loadingConversations && <ConversationListSkeleton />}
             {!loadingConversations &&
               filteredConversations.map((conversation) => (
                 <ConversationRow
@@ -205,7 +237,7 @@ export function ChatPage() {
               </div>
 
               <div className="scrollbar flex-1 space-y-3 overflow-y-auto p-4">
-                {loadingMessages && <p className="text-muted-foreground text-sm">Loading…</p>}
+                {loadingMessages && <MessagesSkeleton />}
                 {!loadingMessages &&
                   activeMessages.map((message) => (
                     <div
@@ -245,7 +277,7 @@ export function ChatPage() {
             </>
           ) : (
             <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-              {loadingConversations ? "Loading…" : "Select a conversation to start chatting."}
+              {!loadingConversations && "Select a conversation to start chatting."}
             </div>
           )}
         </div>
