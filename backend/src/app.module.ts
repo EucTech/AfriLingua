@@ -12,6 +12,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { MatchingModule } from './matching/matching.module';
 import { CallsModule } from './calls/calls.module';
 import { ChatModule } from './chat/chat.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ChatModule } from './chat/chat.module';
     MatchingModule,
     CallsModule,
     ChatModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
