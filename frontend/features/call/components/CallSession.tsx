@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Mic, MicOff, Phone, PhoneOff, Send, Video, VideoOff } from "lucide-react";
+import { Room, RoomEvent, Track, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from "livekit-client";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api";
 import type { CallMode } from "@/types/call";
@@ -19,6 +20,8 @@ interface CallDetails {
   mode: CallMode;
   startedAt: string;
   endedAt: string | null;
+  token: string;
+  livekitUrl: string;
   partner: CallPartner | null;
 }
 
@@ -37,8 +40,15 @@ export function CallSession({ callId }: { callId: string }) {
   const [micOn, setMicOn] = useState(true);
   const [cameraOn, setCameraOn] = useState(true);
   const [ended, setEnded] = useState(false);
+  const [remoteConnected, setRemoteConnected] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [messages, setMessages] = useState<{ id: string; from: "me" | "them"; text: string }[]>([]);
   const [draft, setDraft] = useState("");
+
+  const roomRef = useRef<Room | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     api
@@ -64,6 +74,57 @@ export function CallSession({ callId }: { callId: string }) {
     }
   }, [call]);
 
+  useEffect(() => {
+    if (!call || call.mode === "chat" || ended) return;
+
+    let cancelled = false;
+    const room = new Room();
+    roomRef.current = room;
+
+    const attachRemote = (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+      void publication;
+      void participant;
+      if (track.kind === Track.Kind.Video && remoteVideoRef.current) {
+        track.attach(remoteVideoRef.current);
+        setRemoteConnected(true);
+      } else if (track.kind === Track.Kind.Audio && remoteAudioRef.current) {
+        track.attach(remoteAudioRef.current);
+        setRemoteConnected(true);
+      }
+    };
+
+    const detachRemote = (track: RemoteTrack) => {
+      track.detach();
+    };
+
+    room.on(RoomEvent.TrackSubscribed, attachRemote);
+    room.on(RoomEvent.TrackUnsubscribed, detachRemote);
+    room.on(RoomEvent.ParticipantDisconnected, () => setRemoteConnected(false));
+
+    (async () => {
+      try {
+        await room.connect(call.livekitUrl, call.token);
+        if (cancelled) return;
+        await room.localParticipant.setMicrophoneEnabled(true);
+        if (call.mode === "video") {
+          await room.localParticipant.setCameraEnabled(true);
+          const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+          if (camPub?.track && localVideoRef.current) {
+            camPub.track.attach(localVideoRef.current);
+          }
+        }
+      } catch (error) {
+        if (!cancelled) setConnectError(error instanceof Error ? error.message : "Couldn't connect to the call.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      room.disconnect();
+      roomRef.current = null;
+    };
+  }, [call, ended]);
+
   if (notFound) {
     return (
       <div className="space-y-4">
@@ -81,8 +142,27 @@ export function CallSession({ callId }: { callId: string }) {
 
   const { partner, mode } = call;
 
+  const toggleMic = async () => {
+    const next = !micOn;
+    setMicOn(next);
+    await roomRef.current?.localParticipant.setMicrophoneEnabled(next);
+  };
+
+  const toggleCamera = async () => {
+    const next = !cameraOn;
+    setCameraOn(next);
+    await roomRef.current?.localParticipant.setCameraEnabled(next);
+    if (next) {
+      const camPub = roomRef.current?.localParticipant.getTrackPublication(Track.Source.Camera);
+      if (camPub?.track && localVideoRef.current) {
+        camPub.track.attach(localVideoRef.current);
+      }
+    }
+  };
+
   const endCall = () => {
     setEnded(true);
+    roomRef.current?.disconnect();
     void api.patch(`/calls/${callId}/end`);
   };
 
@@ -162,24 +242,48 @@ export function CallSession({ callId }: { callId: string }) {
         </>
       ) : (
         <>
-          <div className="bg-muted/50 my-4 flex flex-1 flex-col items-center justify-center gap-4 rounded-2xl">
-            <div className="relative">
-              <span className="bg-primary/20 absolute inset-0 animate-ping rounded-full" />
-              <div className="bg-primary relative flex h-24 w-24 items-center justify-center rounded-full text-2xl font-semibold text-white">
-                {partner.initials}
+          <div className="bg-muted/50 relative my-4 flex flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-2xl">
+            {mode === "video" && (
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className={`h-full w-full object-cover ${remoteConnected ? "" : "hidden"}`}
+              />
+            )}
+            <audio ref={remoteAudioRef} autoPlay />
+
+            {!remoteConnected && (
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <span className="bg-primary/20 absolute inset-0 animate-ping rounded-full" />
+                  <div className="bg-primary relative flex h-24 w-24 items-center justify-center rounded-full text-2xl font-semibold text-white">
+                    {partner.initials}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-foreground text-base font-semibold">{partner.name}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {connectError ?? `Waiting for ${partner.name} to join…`}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="text-center">
-              <p className="text-foreground text-base font-semibold">{partner.name}</p>
-              <p className="text-muted-foreground text-xs">
-                {mode === "video" ? "Video call" : "Audio call"} in progress
-              </p>
-            </div>
+            )}
+
+            {mode === "video" && (
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute right-3 bottom-3 h-24 w-32 rounded-lg object-cover shadow-lg"
+              />
+            )}
           </div>
 
           <div className="flex items-center justify-center gap-3 pb-2">
             <button
-              onClick={() => setMicOn((prev) => !prev)}
+              onClick={() => void toggleMic()}
               className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
                 micOn ? "bg-muted text-foreground hover:bg-muted/70" : "bg-destructive/10 text-destructive"
               }`}
@@ -190,7 +294,7 @@ export function CallSession({ callId }: { callId: string }) {
 
             {mode === "video" && (
               <button
-                onClick={() => setCameraOn((prev) => !prev)}
+                onClick={() => void toggleCamera()}
                 className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
                   cameraOn ? "bg-muted text-foreground hover:bg-muted/70" : "bg-destructive/10 text-destructive"
                 }`}
