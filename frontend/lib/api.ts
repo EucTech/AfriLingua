@@ -1,6 +1,12 @@
 import { useAuth } from "@/features/auth/store/useAuth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+export const ASSET_URL = API_URL.replace(/\/api\/?$/, "");
+
+export function resolveAssetUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined;
+  return path.startsWith("/") ? `${ASSET_URL}${path}` : path;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -14,10 +20,12 @@ export class ApiError extends Error {
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = useAuth.getState().token;
 
+  const isFormData = options.body instanceof FormData;
+
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
@@ -47,4 +55,7 @@ export const api = {
     apiFetch<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, { method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  upload: <T>(path: string, formData: FormData) =>
+    apiFetch<T>(path, { method: "POST", body: formData }),
+  delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
 };

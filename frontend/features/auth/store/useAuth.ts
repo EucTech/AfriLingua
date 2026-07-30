@@ -7,6 +7,8 @@ export interface AuthUser {
   email: string;
   initials: string;
   country: string | null;
+  avatarUrl: string | null;
+  role: "user" | "admin";
   xp: number;
   streakDays: number;
 }
