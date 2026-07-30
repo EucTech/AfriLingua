@@ -107,6 +107,12 @@ The app runs at `http://localhost:3000`. By default it talks to the backend at `
 NEXT_PUBLIC_API_URL="http://localhost:4000/api"
 ```
 
+To point your local frontend at the deployed backend instead of running one locally, use:
+
+```bash
+NEXT_PUBLIC_API_URL="https://afrilingua-production-f040.up.railway.app/api"
+```
+
 ### Other frontend scripts
 
 | Command         | What it does                          |
