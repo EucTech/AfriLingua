@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSettings } from "@/features/settings/store/useSettings";
+import { ChangePasswordCard } from "@/features/settings/components/ChangePasswordCard";
+import { DeleteAccountCard } from "@/features/settings/components/DeleteAccountCard";
 
 const INTERFACE_LANGUAGES = ["English", "French", "Swahili", "Kinyarwanda", "Arabic"];
 
@@ -51,7 +53,7 @@ export function SettingsPage() {
     <div className="max-w-2xl space-y-8">
       <div>
         <h1 className="text-foreground text-xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground text-sm">Manage notifications and accessibility.</p>
+        <p className="text-muted-foreground text-sm">Manage notifications, accessibility, and your account.</p>
       </div>
 
       <section className="bg-card border-border rounded-xl border p-6 shadow-sm">
@@ -141,6 +143,9 @@ export function SettingsPage() {
           </SettingRow>
         </div>
       </section>
+
+      <ChangePasswordCard />
+      <DeleteAccountCard />
     </div>
   );
 }
