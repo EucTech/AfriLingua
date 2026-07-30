@@ -237,3 +237,22 @@
     animation: none;
   }
 }
+
+@keyframes loader-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.animate-loader-sweep {
+  animation: loader-sweep 1.3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-loader-sweep {
+    animation-duration: 2.6s;
+  }
+}
