@@ -2,8 +2,12 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Globe, Mail } from "lucide-react";
+import { Camera, Globe, Mail, Pencil } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, ApiError, resolveAssetUrl } from "@/lib/api";
 import { useAuth } from "@/features/auth/store/useAuth";
 import type { AccountProfile } from "@/features/profile/types";
@@ -36,7 +40,36 @@ export function AccountSummaryCard({
   const authUser = useAuth((state) => state.user);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [nameDialogOpen, setNameDialogOpen] = useState(false);
+  const [name, setName] = useState(profile.name);
+  const [savingName, setSavingName] = useState(false);
   const handle = profile.email.split("@")[0];
+
+  const openNameDialog = () => {
+    setName(profile.name);
+    setNameDialogOpen(true);
+  };
+
+  const handleSaveName = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error("Name can't be empty.");
+      return;
+    }
+
+    setSavingName(true);
+    try {
+      const updated = await api.patch<AccountProfile>("/users/me/profile", { name: trimmed });
+      onProfileChange(updated);
+      if (authUser) setAuthUser({ ...authUser, name: updated.name, initials: updated.initials });
+      toast.success("Name updated");
+      setNameDialogOpen(false);
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Couldn't update your name.");
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const handleAvatarPick = () => fileInputRef.current?.click();
 
@@ -97,7 +130,17 @@ export function AccountSummaryCard({
         />
       </div>
 
-      <h2 className="text-foreground mt-6 text-xl font-bold tracking-tight">{profile.name}</h2>
+      <div className="mt-6 flex items-center gap-2">
+        <h2 className="text-foreground text-xl font-bold tracking-tight">{profile.name}</h2>
+        <button
+          type="button"
+          onClick={openNameDialog}
+          aria-label="Edit name"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Pencil size={14} />
+        </button>
+      </div>
       <p className="text-primary text-sm font-medium">@{handle}</p>
       {profile.bio && <p className="text-muted-foreground mt-2 max-w-md text-sm">{profile.bio}</p>}
 
@@ -113,6 +156,25 @@ export function AccountSummaryCard({
           {profile.email}
         </span>
       </div>
+
+      <Dialog open={nameDialogOpen} onOpenChange={setNameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit name</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="profile-name">Name</Label>
+            <Input id="profile-name" value={name} onChange={(event) => setName(event.target.value)} />
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => void handleSaveName()} disabled={savingName} className="w-full">
+              {savingName ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
