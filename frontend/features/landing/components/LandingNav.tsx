@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -12,8 +13,8 @@ export function LandingNav() {
   return (
     <header className="border-b border-border">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="font-heading text-xl">
-          Afri<span className="text-accent italic">Lingua</span>
+        <Link href="/">
+          <Image src="/images/logo-cropped.png" alt="AfriLingua" width={1190} height={284} className="h-7 w-auto" priority />
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">

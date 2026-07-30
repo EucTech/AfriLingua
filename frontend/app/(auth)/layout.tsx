@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -10,8 +11,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       />
 
       <header className="flex items-center justify-between px-4 py-4 sm:px-6">
-        <Link href="/" className="text-primary text-lg font-bold tracking-tight">
-          AfriLingua
+        <Link href="/">
+          <Image src="/images/logo-cropped.png" alt="AfriLingua" width={1190} height={284} className="h-7 w-auto" priority />
         </Link>
         <ThemeToggle />
       </header>
