@@ -2,11 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Mic, MicOff, Phone, PhoneOff, Send, Video, VideoOff } from "lucide-react";
 import { Room, RoomEvent, Track, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from "livekit-client";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api";
 import type { CallMode } from "@/types/call";
+
+async function withRetry(fn: () => Promise<unknown>, attempts = 2, delayMs = 800) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await fn();
+      return;
+    } catch (error) {
+      if (i === attempts - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
 
 interface CallPartner {
   id: string;
@@ -56,6 +69,7 @@ export function CallSession({ callId }: { callId: string }) {
       .then(setCall)
       .catch((error) => {
         if (error instanceof ApiError) setNotFound(true);
+        toast.error(error instanceof ApiError ? error.message : "Couldn't load this call.");
       });
   }, [callId]);
 
@@ -105,16 +119,20 @@ export function CallSession({ callId }: { callId: string }) {
       try {
         await room.connect(call.livekitUrl, call.token);
         if (cancelled) return;
-        await room.localParticipant.setMicrophoneEnabled(true);
+        await withRetry(() => room.localParticipant.setMicrophoneEnabled(true));
         if (call.mode === "video") {
-          await room.localParticipant.setCameraEnabled(true);
+          await withRetry(() => room.localParticipant.setCameraEnabled(true));
           const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
           if (camPub?.track && localVideoRef.current) {
             camPub.track.attach(localVideoRef.current);
           }
         }
       } catch (error) {
-        if (!cancelled) setConnectError(error instanceof Error ? error.message : "Couldn't connect to the call.");
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : "Couldn't connect to the call.";
+          setConnectError(message);
+          toast.error(message);
+        }
       }
     })();
 
@@ -143,27 +161,41 @@ export function CallSession({ callId }: { callId: string }) {
   const { partner, mode } = call;
 
   const toggleMic = async () => {
+    const room = roomRef.current;
+    if (!room) return;
     const next = !micOn;
     setMicOn(next);
-    await roomRef.current?.localParticipant.setMicrophoneEnabled(next);
+    try {
+      await withRetry(() => room.localParticipant.setMicrophoneEnabled(next));
+    } catch (error) {
+      setMicOn(!next);
+      toast.error(error instanceof Error ? error.message : "Couldn't update your microphone.");
+    }
   };
 
   const toggleCamera = async () => {
+    const room = roomRef.current;
+    if (!room) return;
     const next = !cameraOn;
     setCameraOn(next);
-    await roomRef.current?.localParticipant.setCameraEnabled(next);
-    if (next) {
-      const camPub = roomRef.current?.localParticipant.getTrackPublication(Track.Source.Camera);
-      if (camPub?.track && localVideoRef.current) {
-        camPub.track.attach(localVideoRef.current);
+    try {
+      await withRetry(() => room.localParticipant.setCameraEnabled(next));
+      if (next) {
+        const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+        if (camPub?.track && localVideoRef.current) {
+          camPub.track.attach(localVideoRef.current);
+        }
       }
+    } catch (error) {
+      setCameraOn(!next);
+      toast.error(error instanceof Error ? error.message : "Couldn't update your camera.");
     }
   };
 
   const endCall = () => {
     setEnded(true);
     roomRef.current?.disconnect();
-    void api.patch(`/calls/${callId}/end`);
+    api.patch(`/calls/${callId}/end`).catch(() => toast.error("Couldn't properly end the call."));
   };
 
   if (ended) {
