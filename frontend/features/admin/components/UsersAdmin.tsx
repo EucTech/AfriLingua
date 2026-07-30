@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -11,44 +12,59 @@ import type { AdminUserList } from "@/features/admin/types";
 const PAGE_SIZE = 10;
 
 export function UsersAdmin() {
-  const [data, setData] = useState<AdminUserList | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
-    if (search) params.set("search", search);
-
-    const timeout = setTimeout(() => {
-      api
-        .get<AdminUserList>(`/admin/users?${params.toString()}`)
-        .then(setData)
-        .catch(() => toast.error("Couldn't load users."))
-        .finally(() => setLoading(false));
-    }, 250);
-
+    const timeout = setTimeout(() => setDebouncedSearch(search), 250);
     return () => clearTimeout(timeout);
-  }, [search, page]);
+  }, [search]);
 
-  const toggleRole = async (userId: string, currentRole: "user" | "admin") => {
-    const nextRole = currentRole === "admin" ? "user" : "admin";
-    setUpdatingId(userId);
-    try {
-      await api.patch(`/admin/users/${userId}/role`, { role: nextRole });
-      setData((prev) =>
+  const queryKey = ["admin", "users", { search: debouncedSearch, page }] as const;
+
+  const {
+    data,
+    isLoading: loading,
+    isError,
+  } = useQuery({
+    queryKey,
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      return api.get<AdminUserList>(`/admin/users?${params.toString()}`);
+    },
+  });
+
+  useEffect(() => {
+    if (isError) toast.error("Couldn't load users.");
+  }, [isError]);
+
+  const roleMutation = useMutation({
+    mutationFn: ({ userId, nextRole }: { userId: string; nextRole: "user" | "admin" }) =>
+      api.patch(`/admin/users/${userId}/role`, { role: nextRole }),
+    onMutate: ({ userId }) => setUpdatingId(userId),
+    onSuccess: (_result, { nextRole }) => {
+      queryClient.setQueryData<AdminUserList>(queryKey, (prev) =>
         prev
-          ? { ...prev, users: prev.users.map((u) => (u.id === userId ? { ...u, role: nextRole } : u)) }
+          ? {
+              ...prev,
+              users: prev.users.map((u) => (u.id === roleMutation.variables?.userId ? { ...u, role: nextRole } : u)),
+            }
           : prev,
       );
       toast.success(nextRole === "admin" ? "Promoted to admin" : "Removed admin access");
-    } catch (error) {
+    },
+    onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : "Couldn't update this user.");
-    } finally {
-      setUpdatingId(null);
-    }
+    },
+    onSettled: () => setUpdatingId(null),
+  });
+
+  const toggleRole = (userId: string, currentRole: "user" | "admin") => {
+    roleMutation.mutate({ userId, nextRole: currentRole === "admin" ? "user" : "admin" });
   };
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
@@ -128,7 +144,7 @@ export function UsersAdmin() {
                     <td className="px-5 py-3.5 text-right">
                       <button
                         type="button"
-                        onClick={() => void toggleRole(user.id, user.role)}
+                        onClick={() => toggleRole(user.id, user.role)}
                         disabled={updatingId === user.id}
                         className="text-primary inline-flex items-center gap-1.5 text-xs font-medium hover:underline disabled:opacity-50"
                       >

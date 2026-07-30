@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, MessageCircle, Search, Send } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -97,35 +98,30 @@ function ConversationRow({
   );
 }
 
+const conversationsKey = ["chat", "conversations"] as const;
+const messagesKey = (conversationId: string) => ["chat", "conversations", conversationId, "messages"] as const;
+
 export function ChatPage() {
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [loadingConversations, setLoadingConversations] = useState(true);
-  const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessageDto[]>>({});
+  const queryClient = useQueryClient();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
 
-  useEffect(() => {
-    api
-      .get<ConversationSummary[]>("/chat/conversations")
-      .then((data) => {
-        setConversations(data);
-        setActiveId((current) => current ?? data[0]?.id ?? null);
-      })
-      .finally(() => setLoadingConversations(false));
-  }, []);
+  const { data: conversations = [], isLoading: loadingConversations } = useQuery({
+    queryKey: conversationsKey,
+    queryFn: () => api.get<ConversationSummary[]>("/chat/conversations"),
+  });
 
-  useEffect(() => {
-    if (!activeId || messagesByConversation[activeId]) return;
-    api.get<ChatMessageDto[]>(`/chat/conversations/${activeId}/messages`).then((data) => {
-      setMessagesByConversation((prev) => ({ ...prev, [activeId]: data }));
-    });
-  }, [activeId, messagesByConversation]);
+  const resolvedActiveId = activeId ?? conversations[0]?.id ?? null;
 
-  const loadingMessages = Boolean(activeId && !messagesByConversation[activeId]);
-  const activeConversation = conversations.find((c) => c.id === activeId);
-  const activeMessages = activeId ? (messagesByConversation[activeId] ?? []) : [];
+  const { data: activeMessages = [], isLoading: loadingMessages } = useQuery({
+    queryKey: messagesKey(resolvedActiveId ?? ""),
+    queryFn: () => api.get<ChatMessageDto[]>(`/chat/conversations/${resolvedActiveId}/messages`),
+    enabled: !!resolvedActiveId,
+  });
+
+  const activeConversation = conversations.find((c) => c.id === resolvedActiveId);
   const filteredConversations = conversations.filter((c) =>
     c.partnerName.toLowerCase().includes(search.toLowerCase()),
   );
@@ -135,29 +131,32 @@ export function ChatPage() {
     setMobileThreadOpen(true);
   };
 
-  const sendMessage = async () => {
-    const text = draft.trim();
-    if (!text || !activeId) return;
-    setDraft("");
+  const sendMessageMutation = useMutation({
+    mutationFn: (text: string) => api.post<ChatMessageDto>(`/chat/conversations/${resolvedActiveId}/messages`, { text }),
+    onSuccess: (message) => {
+      if (!resolvedActiveId) return;
+      queryClient.setQueryData<ChatMessageDto[]>(messagesKey(resolvedActiveId), (prev) => [...(prev ?? []), message]);
+      queryClient.setQueryData<ConversationSummary[]>(conversationsKey, (prev) =>
+        prev?.map((c) =>
+          c.id === resolvedActiveId
+            ? { ...c, lastMessage: { text: message.text, createdAt: message.createdAt, from: "me" } }
+            : c,
+        ),
+      );
+    },
+  });
 
-    const message = await api.post<ChatMessageDto>(`/chat/conversations/${activeId}/messages`, { text });
-    setMessagesByConversation((prev) => ({
-      ...prev,
-      [activeId]: [...(prev[activeId] ?? []), message],
-    }));
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === activeId
-          ? { ...c, lastMessage: { text: message.text, createdAt: message.createdAt, from: "me" } }
-          : c,
-      ),
-    );
+  const sendMessage = () => {
+    const text = draft.trim();
+    if (!text || !resolvedActiveId) return;
+    setDraft("");
+    sendMessageMutation.mutate(text);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      void sendMessage();
+      sendMessage();
     }
   };
 
@@ -270,7 +269,7 @@ export function ChatPage() {
                   rows={1}
                   className="max-h-32 min-h-11 py-2.5"
                 />
-                <Button size="icon" onClick={() => void sendMessage()} disabled={!draft.trim()} aria-label="Send message">
+                <Button size="icon" onClick={sendMessage} disabled={!draft.trim()} aria-label="Send message">
                   <Send size={16} />
                 </Button>
               </div>

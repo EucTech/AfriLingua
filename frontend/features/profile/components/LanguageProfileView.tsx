@@ -1,49 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
 import type { CourseLevel } from "@/types/course";
+import type { MeResponse } from "@/features/profile/types";
+import { useMe, ME_QUERY_KEY } from "@/features/profile/hooks/useMe";
 import { LanguagesCard, LanguagesSkeleton } from "@/features/profile/components/LanguagesCard";
 import { GoalsCard, GoalsSkeleton } from "@/features/profile/components/GoalsCard";
 
-interface LanguageProfileDto {
-  spokenLanguages: string[];
-  targetLanguages: string[];
-  proficiency: CourseLevel;
-  goals: string[];
-}
-
-interface MeResponse {
-  languageProfile: LanguageProfileDto | null;
-}
-
 export function LanguageProfileView() {
-  const [spokenLanguages, setSpokenLanguages] = useState<string[]>([]);
-  const [targetLanguages, setTargetLanguages] = useState<string[]>([]);
-  const [proficiency, setProficiency] = useState<CourseLevel>("beginner");
-  const [goals, setGoals] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: me, isLoading, isError } = useMe();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    api
-      .get<MeResponse>("/users/me")
-      .then((me) => {
-        if (!me.languageProfile) {
-          setSpokenLanguages(["English"]);
-          setTargetLanguages(["Swahili"]);
-          return;
-        }
-        setSpokenLanguages(me.languageProfile.spokenLanguages);
-        setTargetLanguages(me.languageProfile.targetLanguages);
-        setProficiency(me.languageProfile.proficiency);
-        setGoals(me.languageProfile.goals);
-      })
-      .catch(() => toast.error("Couldn't load your language profile."))
-      .finally(() => setLoading(false));
-  }, []);
+    if (isError) toast.error("Couldn't load your language profile.");
+  }, [isError]);
 
-  if (loading) {
+  if (isLoading || !me) {
     return (
       <>
         <LanguagesSkeleton />
@@ -52,23 +26,40 @@ export function LanguageProfileView() {
     );
   }
 
+  const languageProfile = me.languageProfile;
+  const spokenLanguages = languageProfile?.spokenLanguages.length ? languageProfile.spokenLanguages : ["English"];
+  const targetLanguages = languageProfile?.targetLanguages.length ? languageProfile.targetLanguages : ["Swahili"];
+  const proficiency = languageProfile?.proficiency ?? "beginner";
+  const goals = languageProfile?.goals ?? [];
+
+  const patchLanguageProfile = (patch: Partial<NonNullable<MeResponse["languageProfile"]>>) => {
+    queryClient.setQueryData<MeResponse>(ME_QUERY_KEY, (old) =>
+      old
+        ? {
+            ...old,
+            languageProfile: {
+              spokenLanguages: old.languageProfile?.spokenLanguages ?? [],
+              targetLanguages: old.languageProfile?.targetLanguages ?? [],
+              proficiency: old.languageProfile?.proficiency ?? "beginner",
+              goals: old.languageProfile?.goals ?? [],
+              ...patch,
+            },
+          }
+        : old,
+    );
+  };
+
   return (
     <>
       <LanguagesCard
         spokenLanguages={spokenLanguages}
         targetLanguages={targetLanguages}
-        onSaved={(data) => {
-          setSpokenLanguages(data.spokenLanguages);
-          setTargetLanguages(data.targetLanguages);
-        }}
+        onSaved={(data) => patchLanguageProfile(data)}
       />
       <GoalsCard
-        proficiency={proficiency}
+        proficiency={proficiency as CourseLevel}
         goals={goals}
-        onSaved={(data) => {
-          setProficiency(data.proficiency);
-          setGoals(data.goals);
-        }}
+        onSaved={(data) => patchLanguageProfile(data)}
       />
     </>
   );

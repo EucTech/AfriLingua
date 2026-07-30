@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -45,9 +46,10 @@ function DetailSkeleton() {
   );
 }
 
+const courseDetailKey = (courseId: string) => ["admin", "courses", courseId, "detail"] as const;
+
 export function CourseDetailAdmin({ courseId }: { courseId: string }) {
-  const [course, setCourse] = useState<AdminCourseDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [expandedTracks, setExpandedTracks] = useState<Set<string>>(new Set());
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
 
@@ -69,21 +71,59 @@ export function CourseDetailAdmin({ courseId }: { courseId: string }) {
   const [deleteTrackTarget, setDeleteTrackTarget] = useState<AdminTrack | null>(null);
   const [deleteChapterTarget, setDeleteChapterTarget] = useState<AdminChapter | null>(null);
   const [deleteLessonTarget, setDeleteLessonTarget] = useState<AdminLesson | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const loadCourse = () => {
-    setLoading(true);
-    api
-      .get<AdminCourseDetail>(`/admin/courses/${courseId}/detail`)
-      .then((data) => {
-        setCourse(data);
-        setExpandedTracks((prev) => (prev.size > 0 ? prev : new Set(data.tracks.slice(0, 1).map((t) => t.id))));
-      })
-      .catch(() => toast.error("Couldn't load this course."))
-      .finally(() => setLoading(false));
-  };
+  const queryKey = courseDetailKey(courseId);
 
-  useEffect(loadCourse, [courseId]);
+  const {
+    data: course,
+    isLoading: loading,
+    isError,
+  } = useQuery({
+    queryKey,
+    queryFn: () => api.get<AdminCourseDetail>(`/admin/courses/${courseId}/detail`),
+  });
+
+  useEffect(() => {
+    if (isError) toast.error("Couldn't load this course.");
+  }, [isError]);
+
+  useEffect(() => {
+    if (course) {
+      setExpandedTracks((prev) => (prev.size > 0 ? prev : new Set(course.tracks.slice(0, 1).map((t) => t.id))));
+    }
+  }, [course]);
+
+  const loadCourse = () => queryClient.invalidateQueries({ queryKey });
+
+  const deleteTrackMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/tracks/${id}`),
+    onSuccess: () => {
+      toast.success("Level deleted");
+      setDeleteTrackTarget(null);
+      loadCourse();
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Couldn't delete this level."),
+  });
+
+  const deleteChapterMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/chapters/${id}`),
+    onSuccess: () => {
+      toast.success("Chapter deleted");
+      setDeleteChapterTarget(null);
+      loadCourse();
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Couldn't delete this chapter."),
+  });
+
+  const deleteLessonMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/lessons/${id}`),
+    onSuccess: () => {
+      toast.success("Lesson deleted");
+      setDeleteLessonTarget(null);
+      loadCourse();
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Couldn't delete this lesson."),
+  });
 
   const toggleTrack = (id: string) =>
     setExpandedTracks((prev) => {
@@ -104,51 +144,6 @@ export function CourseDetailAdmin({ courseId }: { courseId: string }) {
   }
 
   const usedLevels = course.tracks.map((t) => t.level) as CourseLevel[];
-
-  const handleDeleteTrack = async () => {
-    if (!deleteTrackTarget) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/admin/tracks/${deleteTrackTarget.id}`);
-      toast.success("Level deleted");
-      setDeleteTrackTarget(null);
-      loadCourse();
-    } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Couldn't delete this level.");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleDeleteChapter = async () => {
-    if (!deleteChapterTarget) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/admin/chapters/${deleteChapterTarget.id}`);
-      toast.success("Chapter deleted");
-      setDeleteChapterTarget(null);
-      loadCourse();
-    } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Couldn't delete this chapter.");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleDeleteLesson = async () => {
-    if (!deleteLessonTarget) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/admin/lessons/${deleteLessonTarget.id}`);
-      toast.success("Lesson deleted");
-      setDeleteLessonTarget(null);
-      loadCourse();
-    } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Couldn't delete this lesson.");
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -370,8 +365,13 @@ export function CourseDetailAdmin({ courseId }: { courseId: string }) {
           </DialogHeader>
           <p className="text-muted-foreground text-sm">This removes the level and all of its chapters and lessons.</p>
           <DialogFooter>
-            <Button variant="destructive" onClick={() => void handleDeleteTrack()} disabled={deleting} className="w-full">
-              {deleting ? "Deleting…" : "Delete level"}
+            <Button
+              variant="destructive"
+              onClick={() => deleteTrackTarget && deleteTrackMutation.mutate(deleteTrackTarget.id)}
+              disabled={deleteTrackMutation.isPending}
+              className="w-full"
+            >
+              {deleteTrackMutation.isPending ? "Deleting…" : "Delete level"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -384,8 +384,13 @@ export function CourseDetailAdmin({ courseId }: { courseId: string }) {
           </DialogHeader>
           <p className="text-muted-foreground text-sm">This removes the chapter and all of its lessons.</p>
           <DialogFooter>
-            <Button variant="destructive" onClick={() => void handleDeleteChapter()} disabled={deleting} className="w-full">
-              {deleting ? "Deleting…" : "Delete chapter"}
+            <Button
+              variant="destructive"
+              onClick={() => deleteChapterTarget && deleteChapterMutation.mutate(deleteChapterTarget.id)}
+              disabled={deleteChapterMutation.isPending}
+              className="w-full"
+            >
+              {deleteChapterMutation.isPending ? "Deleting…" : "Delete chapter"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -398,8 +403,13 @@ export function CourseDetailAdmin({ courseId }: { courseId: string }) {
           </DialogHeader>
           <p className="text-muted-foreground text-sm">This cannot be undone.</p>
           <DialogFooter>
-            <Button variant="destructive" onClick={() => void handleDeleteLesson()} disabled={deleting} className="w-full">
-              {deleting ? "Deleting…" : "Delete lesson"}
+            <Button
+              variant="destructive"
+              onClick={() => deleteLessonTarget && deleteLessonMutation.mutate(deleteLessonTarget.id)}
+              disabled={deleteLessonMutation.isPending}
+              className="w-full"
+            >
+              {deleteLessonMutation.isPending ? "Deleting…" : "Delete lesson"}
             </Button>
           </DialogFooter>
         </DialogContent>

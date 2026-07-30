@@ -1,26 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
-import type { AccountProfile } from "@/features/profile/types";
+import type { AccountProfile, MeResponse } from "@/features/profile/types";
+import { useMe, ME_QUERY_KEY } from "@/features/profile/hooks/useMe";
 import { AccountSummaryCard, AccountSummarySkeleton } from "@/features/profile/components/AccountSummaryCard";
 import { AboutCard, AboutSkeleton } from "@/features/profile/components/AboutCard";
 import { LanguageProfileView } from "@/features/profile/components/LanguageProfileView";
 
 export function ProfileView() {
-  const [profile, setProfile] = useState<AccountProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: profile, isLoading, isError } = useMe();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    api
-      .get<AccountProfile>("/users/me")
-      .then(setProfile)
-      .catch(() => toast.error("Couldn't load your account details."))
-      .finally(() => setLoading(false));
-  }, []);
+    if (isError) toast.error("Couldn't load your account details.");
+  }, [isError]);
 
-  if (loading || !profile) {
+  if (isLoading || !profile) {
     return (
       <>
         <AccountSummarySkeleton />
@@ -29,10 +26,14 @@ export function ProfileView() {
     );
   }
 
+  const handleProfileChange = (updated: AccountProfile) => {
+    queryClient.setQueryData<MeResponse>(ME_QUERY_KEY, (old) => (old ? { ...old, ...updated } : old));
+  };
+
   return (
     <>
-      <AccountSummaryCard profile={profile} onProfileChange={setProfile} />
-      <AboutCard profile={profile} onProfileChange={setProfile} />
+      <AccountSummaryCard profile={profile} onProfileChange={handleProfileChange} />
+      <AboutCard profile={profile} onProfileChange={handleProfileChange} />
       <LanguageProfileView />
     </>
   );

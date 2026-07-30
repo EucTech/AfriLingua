@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Users, BookOpen, GraduationCap } from "lucide-react";
 import {
@@ -50,16 +51,18 @@ function formatDay(date: string) {
 }
 
 export function AdminDashboard() {
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: stats,
+    isLoading: loading,
+    isError,
+  } = useQuery({
+    queryKey: ["admin", "stats"],
+    queryFn: () => api.get<AdminStats>("/admin/stats"),
+  });
 
   useEffect(() => {
-    api
-      .get<AdminStats>("/admin/stats")
-      .then(setStats)
-      .catch(() => toast.error("Couldn't load admin stats."))
-      .finally(() => setLoading(false));
-  }, []);
+    if (isError) toast.error("Couldn't load admin stats.");
+  }, [isError]);
 
   if (loading || !stats) {
     return (

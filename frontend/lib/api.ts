@@ -1,3 +1,4 @@
+import axios, { AxiosError } from "axios";
 import { useAuth } from "@/features/auth/store/useAuth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
@@ -17,45 +18,36 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+const client = axios.create({ baseURL: API_URL });
+
+client.interceptors.request.use((config) => {
   const token = useAuth.getState().token;
+  if (token) {
+    config.headers.set("Authorization", `Bearer ${token}`);
+  }
+  return config;
+});
 
-  const isFormData = options.body instanceof FormData;
+client.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError<{ message?: string | string[] }>) => {
+    const status = error.response?.status ?? 0;
+    const body = error.response?.data;
+    const message = Array.isArray(body?.message)
+      ? body.message.join(", ")
+      : (body?.message ?? error.message);
 
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = await res.json();
-      message = Array.isArray(body?.message) ? body.message.join(", ") : (body?.message ?? message);
-    } catch {
-      // response had no JSON body
-    }
-    if (res.status === 401) {
+    if (status === 401) {
       useAuth.getState().logout();
     }
-    throw new ApiError(res.status, message);
-  }
-
-  if (res.status === 204) return undefined as T;
-  return res.json();
-}
+    return Promise.reject(new ApiError(status, message));
+  },
+);
 
 export const api = {
-  get: <T>(path: string) => apiFetch<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
-  patch: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }),
-  upload: <T>(path: string, formData: FormData) =>
-    apiFetch<T>(path, { method: "POST", body: formData }),
-  delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
+  get: <T>(path: string) => client.get<T>(path).then((res) => res.data),
+  post: <T>(path: string, body?: unknown) => client.post<T>(path, body).then((res) => res.data),
+  patch: <T>(path: string, body?: unknown) => client.patch<T>(path, body).then((res) => res.data),
+  upload: <T>(path: string, formData: FormData) => client.post<T>(path, formData).then((res) => res.data),
+  delete: <T>(path: string, body?: unknown) => client.delete<T>(path, { data: body }).then((res) => res.data),
 };

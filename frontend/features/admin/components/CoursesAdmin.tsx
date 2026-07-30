@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,26 +29,61 @@ interface CourseFormState {
 
 const emptyForm: CourseFormState = { id: "", language: "", nativeName: "", flagEmoji: "", description: "" };
 
+const COURSES_QUERY_KEY = ["admin", "courses"] as const;
+
 export function CoursesAdmin() {
-  const [courses, setCourses] = useState<AdminCourse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AdminCourse | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<CourseFormState>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<AdminCourse | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const loadCourses = () => {
-    setLoading(true);
-    api
-      .get<AdminCourse[]>("/admin/courses")
-      .then(setCourses)
-      .catch(() => toast.error("Couldn't load courses."))
-      .finally(() => setLoading(false));
-  };
+  const {
+    data: courses = [],
+    isLoading: loading,
+    isError,
+  } = useQuery({
+    queryKey: COURSES_QUERY_KEY,
+    queryFn: () => api.get<AdminCourse[]>("/admin/courses"),
+  });
 
-  useEffect(loadCourses, []);
+  useEffect(() => {
+    if (isError) toast.error("Couldn't load courses.");
+  }, [isError]);
+
+  const invalidateCourses = () => queryClient.invalidateQueries({ queryKey: COURSES_QUERY_KEY });
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      editing
+        ? api.patch(`/admin/courses/${editing.id}`, {
+            language: form.language,
+            nativeName: form.nativeName,
+            flagEmoji: form.flagEmoji,
+            description: form.description,
+          })
+        : api.post("/admin/courses", form),
+    onSuccess: () => {
+      toast.success(editing ? "Course updated" : "Course created");
+      setFormOpen(false);
+      invalidateCourses();
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Couldn't save the course.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/courses/${id}`),
+    onSuccess: () => {
+      toast.success("Course deleted");
+      setDeleteTarget(null);
+      invalidateCourses();
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Couldn't delete the course.");
+    },
+  });
 
   const openCreate = () => {
     setEditing(null);
@@ -65,45 +101,6 @@ export function CoursesAdmin() {
       description: course.description,
     });
     setFormOpen(true);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      if (editing) {
-        await api.patch(`/admin/courses/${editing.id}`, {
-          language: form.language,
-          nativeName: form.nativeName,
-          flagEmoji: form.flagEmoji,
-          description: form.description,
-        });
-        toast.success("Course updated");
-      } else {
-        await api.post("/admin/courses", form);
-        toast.success("Course created");
-      }
-      setFormOpen(false);
-      loadCourses();
-    } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Couldn't save the course.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/admin/courses/${deleteTarget.id}`);
-      toast.success("Course deleted");
-      setDeleteTarget(null);
-      loadCourses();
-    } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Couldn't delete the course.");
-    } finally {
-      setDeleting(false);
-    }
   };
 
   const canSave =
@@ -233,8 +230,8 @@ export function CoursesAdmin() {
           </div>
 
           <DialogFooter>
-            <Button onClick={() => void handleSave()} disabled={!canSave || saving} className="w-full">
-              {saving ? "Saving…" : editing ? "Save changes" : "Create course"}
+            <Button onClick={() => saveMutation.mutate()} disabled={!canSave || saveMutation.isPending} className="w-full">
+              {saveMutation.isPending ? "Saving…" : editing ? "Save changes" : "Create course"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -249,8 +246,13 @@ export function CoursesAdmin() {
             This permanently removes the course and all of its tracks, chapters, and lessons.
           </p>
           <DialogFooter>
-            <Button variant="destructive" onClick={() => void handleDelete()} disabled={deleting} className="w-full">
-              {deleting ? "Deleting…" : "Delete course"}
+            <Button
+              variant="destructive"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              disabled={deleteMutation.isPending}
+              className="w-full"
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete course"}
             </Button>
           </DialogFooter>
         </DialogContent>

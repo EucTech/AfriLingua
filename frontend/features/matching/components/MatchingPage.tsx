@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, MessageCircle, Phone, Users, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,10 +12,23 @@ import { courseProgress } from "@/features/courses/lib/progress";
 import { useLessonProgress } from "@/features/courses/store/useLessonProgress";
 import type { CallMode } from "@/types/call";
 
-interface PracticeResponse {
+interface MatchedResult {
+  status: "matched";
   callSessionId: string;
   partner: { id: string; name: string; initials: string; country: string };
 }
+
+interface WaitingResult {
+  status: "waiting";
+  entryId: string;
+}
+
+interface CancelledResult {
+  status: "cancelled";
+}
+
+type PracticeResponse = MatchedResult | WaitingResult;
+type PollResponse = MatchedResult | WaitingResult | CancelledResult;
 
 const modes: {
   id: CallMode;
@@ -62,11 +76,81 @@ export function MatchingPage() {
   const [mode, setMode] = useState<CallMode>("video");
   const [status, setStatus] = useState<Status>("idle");
   const [matchedName, setMatchedName] = useState<string | null>(null);
+  const [entryId, setEntryId] = useState<string | null>(null);
   const cancelledRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeMode = modes.find((m) => m.id === mode) ?? modes[0];
   const Icon = activeMode.icon;
+
+  const handleMatched = (result: MatchedResult) => {
+    if (cancelledRef.current) return;
+    setEntryId(null);
+    setMatchedName(result.partner.name);
+    setStatus("matched");
+    timeoutRef.current = setTimeout(() => {
+      if (cancelledRef.current) return;
+      router.push(`/call/${result.callSessionId}?mode=${mode}`);
+    }, 1100);
+  };
+
+  const practiceMutation = useMutation({
+    mutationFn: () => {
+      if (!activeCourse) throw new Error("No active course");
+      return api.post<PracticeResponse>("/matching/practice", { mode, language: activeCourse.language });
+    },
+    onSuccess: (result) => {
+      if (cancelledRef.current) return;
+      if (result.status === "matched") {
+        handleMatched(result);
+      } else {
+        setEntryId(result.entryId);
+      }
+    },
+    onError: (error) => {
+      if (cancelledRef.current) return;
+      setStatus("idle");
+      toast.error(error instanceof ApiError ? error.message : "Couldn't start the search. Try again.");
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/matching/practice/${id}`),
+  });
+
+  const { data: pollData } = useQuery({
+    queryKey: ["matching", "poll", entryId],
+    queryFn: () => api.get<PollResponse>(`/matching/practice/${entryId}`),
+    enabled: !!entryId,
+    refetchInterval: (query) => (query.state.data?.status === "waiting" ? 1500 : false),
+    refetchIntervalInBackground: true,
+  });
+
+  useEffect(() => {
+    if (!pollData || cancelledRef.current) return;
+    if (pollData.status === "matched") {
+      handleMatched(pollData);
+    } else if (pollData.status === "cancelled") {
+      setEntryId(null);
+      setStatus("idle");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pollData]);
+
+  const startSearch = () => {
+    if (!activeCourse) return;
+    cancelledRef.current = false;
+    setStatus("searching");
+    practiceMutation.mutate();
+  };
+
+  const cancelSearch = () => {
+    cancelledRef.current = true;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (entryId) cancelMutation.mutate(entryId);
+    setEntryId(null);
+    setStatus("idle");
+  };
 
   if (!activeCourse) {
     return (
@@ -83,39 +167,6 @@ export function MatchingPage() {
       </div>
     );
   }
-
-  const startSearch = async () => {
-    if (!activeCourse) return;
-    cancelledRef.current = false;
-    setStatus("searching");
-
-    const minDelay = new Promise((resolve) => setTimeout(resolve, 1800));
-    try {
-      const [result] = await Promise.all([
-        api.post<PracticeResponse>("/matching/practice", { mode, language: activeCourse.language }),
-        minDelay,
-      ]);
-      if (cancelledRef.current) return;
-
-      setMatchedName(result.partner.name);
-      setStatus("matched");
-
-      timeoutRef.current = setTimeout(() => {
-        if (cancelledRef.current) return;
-        router.push(`/call/${result.callSessionId}?mode=${mode}`);
-      }, 1100);
-    } catch (error) {
-      if (cancelledRef.current) return;
-      setStatus("idle");
-      toast.error(error instanceof ApiError ? error.message : "Couldn't find a partner. Try again.");
-    }
-  };
-
-  const cancelSearch = () => {
-    cancelledRef.current = true;
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setStatus("idle");
-  };
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -174,7 +225,7 @@ export function MatchingPage() {
               </div>
               <h2 className="text-foreground text-lg font-semibold tracking-tight">Looking for a partner…</h2>
               <p className="text-muted-foreground text-sm">
-                Matching you with someone who speaks {activeCourse.language}.
+                Waiting for someone else who wants to practice {activeCourse.language} right now.
               </p>
               <button
                 onClick={cancelSearch}

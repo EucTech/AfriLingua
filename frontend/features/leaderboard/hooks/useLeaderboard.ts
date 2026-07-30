@@ -1,27 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { LeaderboardEntry } from "@/types/leaderboard";
 
 export function useLeaderboard() {
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useQuery({
+    queryKey: ["leaderboard"],
+    queryFn: () => api.get<LeaderboardEntry[]>("/leaderboard"),
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<LeaderboardEntry[]>("/leaderboard")
-      .then((data) => {
-        if (!cancelled) setEntries(data);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { entries, loading };
+  return { entries: data ?? [], loading: isLoading };
 }
