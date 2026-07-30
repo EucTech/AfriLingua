@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -21,5 +21,15 @@ export class MatchingController {
   @Post('practice')
   practice(@CurrentUser() user: RequestUser, @Body() dto: PracticeDto) {
     return this.matchingService.practice(user.userId, dto);
+  }
+
+  @Get('practice/:entryId')
+  pollPractice(@CurrentUser() user: RequestUser, @Param('entryId') entryId: string) {
+    return this.matchingService.pollQueue(user.userId, entryId);
+  }
+
+  @Delete('practice/:entryId')
+  cancelPractice(@CurrentUser() user: RequestUser, @Param('entryId') entryId: string) {
+    return this.matchingService.cancelQueue(user.userId, entryId);
   }
 }

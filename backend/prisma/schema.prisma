@@ -34,6 +34,12 @@ enum NotificationType {
   reminder
 }
 
+enum MatchQueueStatus {
+  waiting
+  matched
+  cancelled
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -62,6 +68,7 @@ model User {
 
   matchRequestsSent     MatchRequest[] @relation("MatchRequestsSent")
   matchRequestsReceived MatchRequest[] @relation("MatchRequestsReceived")
+  matchQueueEntries     MatchQueueEntry[]
 
   @@map("users")
 }
@@ -256,6 +263,19 @@ model CallParticipant {
 
   @@unique([callSessionId, userId])
   @@map("call_participants")
+}
+
+model MatchQueueEntry {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode          CallMode
+  language      String
+  status        MatchQueueStatus @default(waiting)
+  callSessionId String?
+  createdAt     DateTime         @default(now())
+
+  @@map("match_queue_entries")
 }
 
 model Notification {
